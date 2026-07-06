@@ -70,6 +70,11 @@ hiddenimports = list(ctk_hiddenimports) + [
     "cv2",
     "customtkinter.windows.widgets",
     "customtkinter.windows.widgets.theme",
+    "objc",
+    "AppKit",
+    "Foundation",
+    "hydration_hero.macos_overlay",
+    "hydration_hero.overlay_composer",
 ]
 
 a = Analysis(

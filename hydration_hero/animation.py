@@ -23,11 +23,21 @@ def chroma_key(image: Image.Image, key_color: Tuple[int, int, int], tolerance: i
     return Image.fromarray(rgba)
 
 
+def crop_to_content(image: Image.Image) -> Image.Image:
+    """Trim empty transparent margins so sprites don't smear when overlaid."""
+    if image.mode != "RGBA":
+        image = image.convert("RGBA")
+    bbox = image.getbbox()
+    if bbox:
+        return image.crop(bbox)
+    return image
+
+
 def load_frame(path: str, target_height: int = 220) -> Optional[Image.Image]:
     try:
         cache_dir = get_cache_dir()
         source_mtime = os.path.getmtime(path)
-        cache_key = hashlib.md5(f"{path}:{source_mtime}:{target_height}".encode()).hexdigest()
+        cache_key = hashlib.md5(f"{path}:{source_mtime}:{target_height}:crop_v1".encode()).hexdigest()
         cache_path = os.path.join(cache_dir, f"{cache_key}.png")
 
         if os.path.exists(cache_path):
@@ -39,6 +49,7 @@ def load_frame(path: str, target_height: int = 220) -> Optional[Image.Image]:
         scale = target_height / image.height
         new_size = (int(image.width * scale), target_height)
         image = image.resize(new_size, Image.NEAREST)
+        image = crop_to_content(image)
         image.save(cache_path, format="PNG")
         return image
     except OSError:
@@ -62,19 +73,55 @@ class AnimationLibrary:
         if not self._frame_paths:
             raise FileNotFoundError(f"No frame_*.png files found in {self.asset_dir}")
 
-    def load_async(self, on_ready: Optional[Callable[[], None]] = None) -> None:
-        def worker() -> None:
-            try:
-                self.asset_dir = resolve_frame_dir()
-                pattern = os.path.join(self.asset_dir, "frame_*.png")
-                frame_paths = sorted(
-                    glob.glob(pattern),
-                    key=lambda path: int(os.path.basename(path).split("_")[1].split(".")[0]),
-                )
-                if not frame_paths:
-                    raise FileNotFoundError(f"No frame_*.png files found in {self.asset_dir}")
+    def load_async(
+        self,
+        master,
+        on_ready: Optional[Callable[[], None]] = None,
+        *,
+        batch_size: int = 12,
+    ) -> None:
+        """Load sprite frames on the Tk main thread (safe with tkinter + pyobjc)."""
+        self.ready = False
+        self._load_error = None
+        self._load_generation = getattr(self, "_load_generation", 0) + 1
+        generation = self._load_generation
 
-                animations = self._build_animations_from_paths(frame_paths)
+        try:
+            self.asset_dir = resolve_frame_dir()
+            pattern = os.path.join(self.asset_dir, "frame_*.png")
+            frame_paths = sorted(
+                glob.glob(pattern),
+                key=lambda path: int(os.path.basename(path).split("_")[1].split(".")[0]),
+            )
+            if not frame_paths:
+                raise FileNotFoundError(f"No frame_*.png files found in {self.asset_dir}")
+        except Exception as exc:
+            with self._lock:
+                self._load_error = exc
+                self.ready = False
+            if on_ready:
+                on_ready()
+            return
+
+        loaded: List[Optional[Image.Image]] = []
+        state = {"index": 0}
+
+        def load_batch() -> None:
+            if generation != self._load_generation:
+                return
+
+            batch_end = min(len(frame_paths), state["index"] + batch_size)
+            while state["index"] < batch_end:
+                path = frame_paths[state["index"]]
+                loaded.append(load_frame(path, target_height=self.target_height))
+                state["index"] += 1
+
+            if state["index"] < len(frame_paths):
+                master.after(1, load_batch)
+                return
+
+            try:
+                animations = self._build_animations_from_paths(frame_paths, loaded)
                 with self._lock:
                     self._frame_paths = frame_paths
                     self.animations = animations
@@ -87,14 +134,17 @@ class AnimationLibrary:
             if on_ready:
                 on_ready()
 
-        self.ready = False
-        threading.Thread(target=worker, daemon=True).start()
+        master.after(0, load_batch)
 
-    def reload_async(self, on_ready: Optional[Callable[[], None]] = None) -> None:
+    def reload_async(
+        self,
+        master,
+        on_ready: Optional[Callable[[], None]] = None,
+    ) -> None:
         with self._lock:
             self.animations = {}
             self.ready = False
-        self.load_async(on_ready=on_ready)
+        self.load_async(master, on_ready=on_ready)
 
     def _build_animations(self) -> Dict[str, List[Optional[Image.Image]]]:
         return self._build_animations_from_paths(self._frame_paths)
@@ -102,14 +152,21 @@ class AnimationLibrary:
     def _build_animations_from_paths(
         self,
         frame_paths: List[str],
+        loaded_frames: Optional[List[Optional[Image.Image]]] = None,
     ) -> Dict[str, List[Optional[Image.Image]]]:
-        count = len(self._frame_paths)
+        count = len(frame_paths)
         segments = {
-            "walk_in": self._frame_paths[0 : int(count * 0.25)],
-            "stand": self._frame_paths[int(count * 0.25) : int(count * 0.30)],
-            "drink": self._frame_paths[int(count * 0.30) : int(count * 0.80)],
-            "walk_out": self._frame_paths[int(count * 0.80) :],
+            "walk_in": frame_paths[0 : int(count * 0.25)],
+            "stand": frame_paths[int(count * 0.25) : int(count * 0.30)],
+            "drink": frame_paths[int(count * 0.30) : int(count * 0.80)],
+            "walk_out": frame_paths[int(count * 0.80) :],
         }
+        if loaded_frames is not None:
+            by_path = dict(zip(frame_paths, loaded_frames))
+            return {
+                name: [by_path[path] for path in paths]
+                for name, paths in segments.items()
+            }
         return {
             name: [load_frame(path, target_height=self.target_height) for path in paths]
             for name, paths in segments.items()
@@ -125,11 +182,14 @@ class AnimationPlayer:
         self,
         canvas,
         animations: AnimationLibrary,
-        center: Tuple[int, int] = (150, 150),
+        position: Tuple[int, int] = (150, 150),
+        *,
+        image_anchor: str = "s",
     ) -> None:
         self.canvas = canvas
         self.animations = animations
-        self.center = center
+        self.position = position
+        self.image_anchor = image_anchor
         self._running = False
         self._generation = 0
         self._after_id: Optional[str] = None
@@ -162,6 +222,7 @@ class AnimationPlayer:
         *,
         loop: bool = False,
         on_complete: Optional[Callable[[], None]] = None,
+        motion_x: Optional[Tuple[int, int]] = None,
     ) -> None:
         frames = self.animations.get(name)
         if not frames:
@@ -172,22 +233,130 @@ class AnimationPlayer:
         self._cancel_pending()
         self._running = True
         generation = self._generation
+        frame_count = len(frames)
 
         def step(index: int) -> None:
             if not self._running or generation != self._generation:
                 return
 
-            if index < len(frames):
+            if index < frame_count:
                 frame = frames[index]
                 self.canvas.delete("sprite")
                 if frame is not None:
                     photo = self._to_photo(frame)
+                    x = self.position[0]
+                    if motion_x is not None and frame_count > 1:
+                        start_x, end_x = motion_x
+                        progress = index / (frame_count - 1)
+                        x = int(start_x + (end_x - start_x) * progress)
                     self.canvas.create_image(
-                        self.center[0],
-                        self.center[1],
+                        x,
+                        self.position[1],
                         image=photo,
+                        anchor=self.image_anchor,
                         tags="sprite",
                     )
+                    try:
+                        self.canvas.tag_lower("sprite")
+                    except Exception:
+                        pass
+                self._after_id = self.canvas.after(delay_ms, lambda idx=index: step(idx + 1))
+                return
+
+            if loop:
+                self._after_id = self.canvas.after(delay_ms, lambda: step(0))
+                return
+
+            if on_complete:
+                on_complete()
+
+        step(0)
+
+
+class ScenePlayer:
+    """Play sprite animations composited onto a static RGB scene (no Tk alpha needed)."""
+
+    def __init__(
+        self,
+        canvas,
+        animations: AnimationLibrary,
+        scene: Image.Image,
+        foot_y: int,
+        foot_x: Optional[int] = None,
+    ) -> None:
+        self.canvas = canvas
+        self.animations = animations
+        self.scene = scene.convert("RGB")
+        self.foot_y = foot_y
+        self.foot_x = foot_x if foot_x is not None else scene.width // 2
+        self._running = False
+        self._generation = 0
+        self._after_id: Optional[str] = None
+        self._photo_refs: List[ImageTk.PhotoImage] = []
+
+    def stop(self) -> None:
+        self._running = False
+        self._generation += 1
+        self._cancel_pending()
+
+    def _cancel_pending(self) -> None:
+        if self._after_id is not None:
+            try:
+                self.canvas.after_cancel(self._after_id)
+            except Exception:
+                pass
+            self._after_id = None
+
+    def _composite(self, frame: Image.Image, foot_x: int) -> Image.Image:
+        canvas = self.scene.copy()
+        sprite = frame.convert("RGBA")
+        paste_x = foot_x - sprite.width // 2
+        paste_y = self.foot_y - sprite.height
+        canvas.paste(sprite, (paste_x, paste_y), sprite.split()[3])
+        return canvas
+
+    def _to_photo(self, frame: Image.Image, foot_x: int) -> ImageTk.PhotoImage:
+        photo = ImageTk.PhotoImage(self._composite(frame, foot_x), master=self.canvas)
+        self._photo_refs.append(photo)
+        if len(self._photo_refs) > 4:
+            self._photo_refs.pop(0)
+        return photo
+
+    def play(
+        self,
+        name: str,
+        delay_ms: int,
+        *,
+        loop: bool = False,
+        on_complete: Optional[Callable[[], None]] = None,
+        motion_x: Optional[Tuple[int, int]] = None,
+    ) -> None:
+        frames = self.animations.get(name)
+        if not frames:
+            if on_complete:
+                on_complete()
+            return
+
+        self._cancel_pending()
+        self._running = True
+        generation = self._generation
+        frame_count = len(frames)
+
+        def step(index: int) -> None:
+            if not self._running or generation != self._generation:
+                return
+
+            if index < frame_count:
+                frame = frames[index]
+                self.canvas.delete("scene")
+                if frame is not None:
+                    foot_x = self.foot_x
+                    if motion_x is not None and frame_count > 1:
+                        start_x, end_x = motion_x
+                        progress = index / (frame_count - 1)
+                        foot_x = int(start_x + (end_x - start_x) * progress)
+                    photo = self._to_photo(frame, foot_x)
+                    self.canvas.create_image(0, 0, image=photo, anchor="nw", tags="scene")
                 self._after_id = self.canvas.after(delay_ms, lambda idx=index: step(idx + 1))
                 return
 

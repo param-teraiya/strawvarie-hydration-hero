@@ -2,7 +2,7 @@ import os
 import platform
 import sys
 import tkinter as tk
-from typing import Tuple, Union
+from typing import Optional, Tuple, Union
 
 import customtkinter as ctk
 
@@ -31,25 +31,28 @@ def init_customtkinter() -> None:
 
 
 def use_mac_scroll_workaround() -> bool:
-    """Use tk Canvas scrolling instead of CTkScrollableFrame on macOS."""
+    """Use tk Canvas scrolling on macOS — CTkScrollableFrame trackpad support is unreliable."""
     return platform.system() == "Darwin"
 
 
-def nested_frame_color(surface: str) -> str:
-    """On macOS, transparent CTkFrame often renders incorrectly."""
+def _wheel_step(event: tk.Event) -> int:
+    if not event.delta:
+        return 0
     if platform.system() == "Darwin":
-        return surface
-    return "transparent"
+        if abs(event.delta) >= 120:
+            return int(-event.delta / 120)
+        return int(-event.delta) or (-1 if event.delta > 0 else 1)
+    return int(-event.delta / 120) or (-1 if event.delta > 0 else 1)
 
 
 class MacScrollContainer:
-    """Reliable scroll area for macOS (.app bundles and python.org Tk 8.6)."""
+    """Reliable scroll area for macOS — canvas + scrollbar on the main window."""
 
     def __init__(self, parent: ctk.CTk, bg_color: str) -> None:
         self._parent = parent
         self._bg_color = bg_color
         self.outer = ctk.CTkFrame(parent, fg_color=bg_color)
-        self.outer.pack(fill="both", expand=True, padx=16, pady=16)
+        self.outer.pack(fill="both", expand=True, padx=20, pady=(12, 16))
 
         self.canvas = tk.Canvas(
             self.outer,
@@ -61,46 +64,99 @@ class MacScrollContainer:
             self.outer,
             orientation="vertical",
             command=self.canvas.yview,
+            fg_color=bg_color,
+            button_color=COLORS["divider"],
+            button_hover_color=COLORS["muted"],
         )
         self.inner = ctk.CTkFrame(self.canvas, fg_color=bg_color)
 
         self._window_id = self.canvas.create_window((0, 0), window=self.inner, anchor="nw")
         self.canvas.configure(yscrollcommand=self.scrollbar.set)
         self.canvas.pack(side="left", fill="both", expand=True)
-        self.scrollbar.pack(side="right", fill="y")
+        self.scrollbar.pack(side="right", fill="y", padx=(4, 0))
 
         self.inner.bind("<Configure>", self._sync_scroll_region)
         self.canvas.bind("<Configure>", self._sync_inner_width)
-        self.canvas.bind("<Enter>", self._bind_wheel)
-        self.canvas.bind("<Leave>", self._unbind_wheel)
+        parent.bind_all("<MouseWheel>", self._on_wheel_global, add="+")
+        parent.bind_all("<Button-4>", self._on_wheel_global, add="+")
+        parent.bind_all("<Button-5>", self._on_wheel_global, add="+")
         parent.after(150, self._sync_scroll_region)
 
     def _sync_scroll_region(self, _event=None) -> None:
         self.canvas.update_idletasks()
         bbox = self.canvas.bbox("all")
         if bbox:
-            self.canvas.configure(scrollregion=bbox)
+            self.canvas.configure(scrollregion=(bbox[0], bbox[1], bbox[2], bbox[3] + 40))
 
     def _sync_inner_width(self, event: tk.Event) -> None:
         self.canvas.itemconfigure(self._window_id, width=event.width)
 
+    def _is_over_dashboard(self, widget: Optional[tk.Widget]) -> bool:
+        current = widget
+        while current is not None:
+            if current in (self.inner, self.outer, self.canvas):
+                return True
+            if current == self._parent:
+                return True
+            current = current.master if hasattr(current, "master") else None
+        return False
+
+    def _on_wheel_global(self, event: tk.Event) -> Optional[str]:
+        try:
+            widget = self._parent.winfo_containing(
+                self._parent.winfo_pointerx(),
+                self._parent.winfo_pointery(),
+            )
+        except tk.TclError:
+            return None
+        if not self._is_over_dashboard(widget):
+            return None
+        self._on_wheel(event)
+        return "break"
+
     def _on_wheel(self, event: tk.Event) -> None:
-        if event.delta:
-            self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        step = _wheel_step(event)
+        if step:
+            self.canvas.yview_scroll(step, "units")
         elif event.num == 4:
-            self.canvas.yview_scroll(-1, "units")
+            self.canvas.yview_scroll(-3, "units")
         elif event.num == 5:
-            self.canvas.yview_scroll(1, "units")
+            self.canvas.yview_scroll(3, "units")
 
-    def _bind_wheel(self, _event=None) -> None:
-        self.canvas.bind_all("<MouseWheel>", self._on_wheel, add="+")
-        self.canvas.bind_all("<Button-4>", self._on_wheel, add="+")
-        self.canvas.bind_all("<Button-5>", self._on_wheel, add="+")
 
-    def _unbind_wheel(self, _event=None) -> None:
-        self.canvas.unbind_all("<MouseWheel>")
-        self.canvas.unbind_all("<Button-4>")
-        self.canvas.unbind_all("<Button-5>")
+def _attach_scroll_handlers(root: ctk.CTk, scroll: ctk.CTkScrollableFrame) -> None:
+    """Ensure trackpad / mouse-wheel scrolling works over all dashboard widgets."""
+    canvas = scroll._parent_canvas
+
+    def _scroll(event: tk.Event) -> str:
+        step = _wheel_step(event)
+        if step:
+            canvas.yview_scroll(step, "units")
+        elif event.num == 4:
+            canvas.yview_scroll(-3, "units")
+        elif event.num == 5:
+            canvas.yview_scroll(3, "units")
+        return "break"
+
+    def _scroll_if_over_content(event: tk.Event) -> Optional[str]:
+        try:
+            widget = root.winfo_containing(root.winfo_pointerx(), root.winfo_pointery())
+        except tk.TclError:
+            return None
+        if widget is None:
+            return None
+        current: Optional[tk.Widget] = widget
+        while current is not None:
+            if current == scroll:
+                return _scroll(event)
+            current = current.master if hasattr(current, "master") else None
+        return None
+
+    root.bind_all("<MouseWheel>", _scroll_if_over_content, add="+")
+    root.bind_all("<Button-4>", _scroll_if_over_content, add="+")
+    root.bind_all("<Button-5>", _scroll_if_over_content, add="+")
+    canvas.bind("<MouseWheel>", _scroll, add="+")
+    scroll.bind("<MouseWheel>", _scroll, add="+")
 
 
 def create_main_container(parent: ctk.CTk, bg_color: str) -> Tuple[WidgetContainer, ctk.CTkFrame]:
@@ -110,25 +166,35 @@ def create_main_container(parent: ctk.CTk, bg_color: str) -> Tuple[WidgetContain
         parent._mac_scroll = scroll  # type: ignore[attr-defined]
         return scroll.outer, scroll.inner
 
-    scroll = ctk.CTkScrollableFrame(parent, fg_color=bg_color)
-    scroll.pack(fill="both", expand=True, padx=16, pady=16)
+    scroll = ctk.CTkScrollableFrame(
+        parent,
+        fg_color=bg_color,
+        scrollbar_fg_color=bg_color,
+        scrollbar_button_color=COLORS["divider"],
+        scrollbar_button_hover_color=COLORS["muted"],
+    )
+    scroll.pack(fill="both", expand=True, padx=20, pady=(12, 16))
     fix_scrollable_frame(scroll, bg_color)
+    _attach_scroll_handlers(parent, scroll)
+    parent._scroll_frame = scroll  # type: ignore[attr-defined]
     return scroll, scroll
 
 
 def apply_mac_window_size(window: ctk.CTk) -> None:
     """Size and center the main dashboard window."""
     width = CONTENT_WIDTH
-    if not use_mac_scroll_workaround():
-        center_window(window, width, 720)
-        window.minsize(400, 560)
-        return
-
     window.update_idletasks()
     screen_h = window.winfo_screenheight()
-    height = min(920, max(700, screen_h - 80))
+    height = min(720, max(600, screen_h - 120))
     center_window(window, width, height)
-    window.minsize(400, 560)
+    window.minsize(420, 580)
+
+
+def nested_frame_color(surface: str) -> str:
+    """On macOS, transparent CTkFrame often renders incorrectly."""
+    if platform.system() == "Darwin":
+        return surface
+    return "transparent"
 
 
 def center_window(window: ctk.CTk, width: int, height: int) -> None:
@@ -142,7 +208,7 @@ def center_window(window: ctk.CTk, width: int, height: int) -> None:
 
 def section_header(parent: ctk.CTkFrame, title: str, subtitle: str = "") -> None:
     block = ctk.CTkFrame(parent, fg_color=nested_frame_color(COLORS["bg"]))
-    block.pack(fill="x", pady=(0, 10))
+    block.pack(fill="x", pady=(8, 12))
     ctk.CTkLabel(
         block,
         text=title,
@@ -157,12 +223,12 @@ def section_header(parent: ctk.CTkFrame, title: str, subtitle: str = "") -> None
             font=font("caption"),
             text_color=COLORS["muted"],
             anchor="w",
-            wraplength=CONTENT_WIDTH - 64,
+            wraplength=CONTENT_WIDTH - 80,
             justify="left",
-        ).pack(fill="x", pady=(2, 0))
+        ).pack(fill="x", pady=(4, 0))
 
 
-def create_card(parent: ctk.CTkFrame) -> Tuple[ctk.CTkFrame, ctk.CTkFrame]:
+def create_card(parent: ctk.CTkFrame, *, pady: Tuple[int, int] = (0, 16)) -> Tuple[ctk.CTkFrame, ctk.CTkFrame]:
     card = ctk.CTkFrame(
         parent,
         corner_radius=CARD_RADIUS,
@@ -170,9 +236,9 @@ def create_card(parent: ctk.CTkFrame) -> Tuple[ctk.CTkFrame, ctk.CTkFrame]:
         border_width=1,
         border_color=COLORS["card_border"],
     )
-    card.pack(fill="x", pady=(0, 14))
+    card.pack(fill="x", pady=pady)
     inner = ctk.CTkFrame(card, fg_color=nested_frame_color(COLORS["card"]))
-    inner.pack(fill="x", padx=20, pady=18)
+    inner.pack(fill="x", padx=22, pady=20)
     return card, inner
 
 
@@ -226,9 +292,19 @@ def ghost_button(parent, **kwargs) -> ctk.CTkButton:
 
 def refresh_main_scroll(window: ctk.CTk) -> None:
     """Recalculate scroll area after all widgets are packed."""
-    scroll = getattr(window, "_mac_scroll", None)
-    if scroll is not None:
-        scroll._sync_scroll_region()
+    mac_scroll = getattr(window, "_mac_scroll", None)
+    if mac_scroll is not None:
+        mac_scroll._sync_scroll_region()
+        return
+
+    scroll = getattr(window, "_scroll_frame", None)
+    if scroll is None:
+        return
+    scroll.update_idletasks()
+    canvas = scroll._parent_canvas
+    bbox = canvas.bbox("all")
+    if bbox:
+        canvas.configure(scrollregion=(bbox[0], bbox[1], bbox[2], bbox[3] + 40))
 
 
 def fix_scrollable_frame(frame: ctk.CTkScrollableFrame, bg_color: str) -> None:
@@ -252,6 +328,37 @@ def fix_scrollable_frame(frame: ctk.CTkScrollableFrame, bg_color: str) -> None:
         frame._parent_frame.configure(fg_color=bg_color)
     except Exception:
         pass
+
+
+def make_overlay_transparent(window) -> Optional[str]:
+    """Make a frameless window's background transparent so only sprites show.
+
+    Returns the color name to use for transparent widget backgrounds, or None
+    if the current platform cannot render a per-pixel transparent overlay.
+    """
+
+    def _set_bg(color: str) -> None:
+        # Bypass CustomTkinter's configure() override (it rejects raw ``bg``)
+        # by talking to the underlying Tk widget directly.
+        window.tk.call(window._w, "configure", "-background", color)
+
+    system = platform.system()
+    if system == "Darwin":
+        try:
+            window.wm_attributes("-transparent", True)
+            _set_bg("systemTransparent")
+            return "systemTransparent"
+        except Exception:
+            return None
+    if system == "Windows":
+        try:
+            magic = "#010203"
+            window.wm_attributes("-transparentcolor", magic)
+            _set_bg(magic)
+            return magic
+        except Exception:
+            return None
+    return None
 
 
 def verify_frozen_assets() -> None:

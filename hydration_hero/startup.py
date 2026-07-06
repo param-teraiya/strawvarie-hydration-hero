@@ -65,6 +65,20 @@ def check_runtime() -> None:
         _print_macos_python_fix()
         sys.exit(1)
 
+    is_python_org = sys.base_prefix.startswith("/Library/Frameworks/Python.framework/")
+    if version.major == 3 and version.minor >= 14:
+        print("WARNING: Python 3.14+ detected.")
+        print("         The transparent desktop reminder uses a card fallback on this version.")
+        print("         For the full floating hero, use Python 3.12 from python.org:")
+        print(f"         {PYTHON_ORG_URL}")
+        print()
+    elif not is_python_org:
+        print("WARNING: Homebrew Python detected.")
+        print("         The transparent desktop reminder uses a card fallback with Homebrew Python.")
+        print("         For the full floating hero, use Python 3.12 from python.org:")
+        print(f"         {PYTHON_ORG_URL}")
+        print()
+
 
 def print_startup_hint() -> None:
     print()

@@ -22,7 +22,6 @@ from hydration_hero.hero import HeroStatus
 from hydration_hero.paths import get_user_hero_root
 from hydration_hero.storage import SettingsStore
 from hydration_hero.ui import (
-    accent_strip,
     apply_mac_window_size,
     create_card,
     create_main_container,
@@ -76,34 +75,41 @@ class MainWindow(ctk.CTk):
         self._build_quick_log(container)
         self._build_settings_card(container)
         self._build_footer(container)
+        ctk.CTkFrame(container, height=8, fg_color=nested_frame_color(self.COLORS["bg"])).pack(fill="x")
 
     def _build_header(self, container: ctk.CTkFrame) -> None:
         brand_row = ctk.CTkFrame(container, fg_color=nested_frame_color(self.COLORS["bg"]))
-        brand_row.pack(fill="x", pady=(0, 12))
+        brand_row.pack(fill="x", pady=(0, 20))
+        brand_row.grid_columnconfigure(1, weight=1)
 
-        self._logo_image = create_logo_image()
-        ctk.CTkLabel(brand_row, text="", image=self._logo_image).pack(anchor="w")
+        self._logo_image = create_logo_image(width=180)
+        logo_wrap = ctk.CTkFrame(brand_row, fg_color=nested_frame_color(self.COLORS["bg"]))
+        logo_wrap.grid(row=0, column=0, rowspan=2, sticky="nw", padx=(0, 16))
+        ctk.CTkLabel(logo_wrap, text="", image=self._logo_image).pack(anchor="w")
+
+        text_block = ctk.CTkFrame(brand_row, fg_color=nested_frame_color(self.COLORS["bg"]))
+        text_block.grid(row=0, column=1, sticky="nw")
 
         ctk.CTkLabel(
-            brand_row,
+            text_block,
             text=APP_NAME,
-            font=font("section"),
-            text_color=self.COLORS["muted"],
-        ).pack(anchor="w", pady=(8, 0))
+            font=font("title"),
+            text_color=self.COLORS["text"],
+        ).pack(anchor="w")
 
         ctk.CTkLabel(
-            brand_row,
+            text_block,
             text=TAGLINE,
             font=font("caption"),
-            text_color=self.COLORS["seafoam"],
-        ).pack(anchor="w", pady=(2, 0))
+            text_color=self.COLORS["brand"],
+        ).pack(anchor="w", pady=(4, 0))
 
         ctk.CTkLabel(
-            brand_row,
+            text_block,
             text=HERO_LINE,
             font=font("body"),
             text_color=self.COLORS["muted"],
-        ).pack(anchor="w", pady=(4, 0))
+        ).pack(anchor="w", pady=(6, 0))
 
     def _build_welcome_banner(self, container: ctk.CTkFrame) -> None:
         banner = ctk.CTkFrame(
@@ -124,35 +130,40 @@ class MainWindow(ctk.CTk):
         ).pack(anchor="w", padx=16, pady=12)
 
     def _build_progress_card(self, container: ctk.CTkFrame) -> None:
-        _card, inner = create_card(container)
-        accent_strip(inner)
+        _card, inner = create_card(container, pady=(0, 20))
+
+        top_row = ctk.CTkFrame(inner, fg_color=nested_frame_color(self.COLORS["card"]))
+        top_row.pack(fill="x", pady=(0, 12))
+        top_row.grid_columnconfigure(0, weight=1)
+
+        label_col = ctk.CTkFrame(top_row, fg_color=nested_frame_color(self.COLORS["card"]))
+        label_col.grid(row=0, column=0, sticky="w")
         ctk.CTkLabel(
-            inner,
+            label_col,
             text="Today's hydration",
             font=font("section"),
             text_color=self.COLORS["text"],
         ).pack(anchor="w")
-
-        self.amount_label = ctk.CTkLabel(
-            inner,
-            text="0 / 2000 ml",
-            font=font("hero_amount"),
-            text_color=self.COLORS["text"],
-        )
-        self.amount_label.pack(anchor="w", pady=(8, 0))
-
         self.percent_label = ctk.CTkLabel(
-            inner,
+            label_col,
             text="0% of daily goal",
             font=font("caption"),
             text_color=self.COLORS["muted"],
         )
-        self.percent_label.pack(anchor="w", pady=(2, 12))
+        self.percent_label.pack(anchor="w", pady=(4, 0))
+
+        self.amount_label = ctk.CTkLabel(
+            top_row,
+            text="0 / 2000 ml",
+            font=font("hero_amount"),
+            text_color=self.COLORS["text"],
+        )
+        self.amount_label.grid(row=0, column=1, sticky="e", padx=(12, 0))
 
         self.progress_bar = ctk.CTkProgressBar(
             inner,
-            height=12,
-            corner_radius=6,
+            height=10,
+            corner_radius=5,
             progress_color=self.COLORS["progress_fill"],
             fg_color=self.COLORS["progress_bg"],
         )
@@ -179,17 +190,25 @@ class MainWindow(ctk.CTk):
             hero_inner,
             text="Open setup guide",
             command=open_setup_guide,
-        ).pack(fill="x", pady=(0, 10))
+        ).pack(fill="x", pady=(0, 12))
 
-        self.hero_folder_label = ctk.CTkLabel(
+        path_box = ctk.CTkFrame(
             hero_inner,
+            fg_color=self.COLORS["field_bg"],
+            corner_radius=10,
+            border_width=1,
+            border_color=self.COLORS["card_border"],
+        )
+        path_box.pack(fill="x", pady=(0, 14))
+        self.hero_folder_label = ctk.CTkLabel(
+            path_box,
             text=os.path.join(get_user_hero_root(), "hero.mp4"),
             font=font("small"),
             text_color=self.COLORS["muted"],
-            wraplength=400,
+            wraplength=360,
             justify="left",
         )
-        self.hero_folder_label.pack(anchor="w", pady=(0, 12))
+        self.hero_folder_label.pack(anchor="w", padx=12, pady=10)
 
         hero_actions = ctk.CTkFrame(hero_inner, fg_color=nested_frame_color(self.COLORS["card"]))
         hero_actions.pack(fill="x")
@@ -224,39 +243,40 @@ class MainWindow(ctk.CTk):
         section_header(container, "Quick log", "Tap to add water to today's total.")
 
         quick_row = ctk.CTkFrame(container, fg_color=nested_frame_color(self.COLORS["bg"]))
-        quick_row.pack(fill="x", pady=(0, 10))
-        quick_row.grid_columnconfigure((0, 1, 2), weight=1)
+        quick_row.pack(fill="x", pady=(0, 12))
+        quick_row.grid_columnconfigure((0, 1, 2), weight=1, uniform="quick")
 
         for col, amount in enumerate((250, 500, 750)):
+            padx = (0, 5) if col == 0 else (5, 0) if col == 2 else (5, 5)
             secondary_button(
                 quick_row,
                 text=f"+{amount} ml",
-                height=46,
+                height=48,
                 font=font("body_bold"),
                 command=lambda ml=amount: self._log_water(ml),
-            ).grid(row=0, column=col, sticky="ew", padx=(0 if col == 0 else 6, 0))
+            ).grid(row=0, column=col, sticky="ew", padx=padx)
 
         custom_row = ctk.CTkFrame(container, fg_color=nested_frame_color(self.COLORS["bg"]))
-        custom_row.pack(fill="x", pady=(0, 6))
+        custom_row.pack(fill="x", pady=(0, 8))
 
         self.custom_entry = ctk.CTkEntry(
             custom_row,
             placeholder_text="Custom amount (ml)",
-            height=44,
+            height=46,
             corner_radius=12,
             fg_color=self.COLORS["card"],
             border_color=self.COLORS["card_border"],
             text_color=self.COLORS["text"],
             font=font("body"),
         )
-        self.custom_entry.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        self.custom_entry.pack(side="left", fill="x", expand=True, padx=(0, 10))
         self.custom_entry.bind("<Return>", lambda _e: self._log_custom())
 
         primary_button(
             custom_row,
             text="Add",
-            width=88,
-            height=44,
+            width=92,
+            height=46,
             command=self._log_custom,
         ).pack(side="right")
 
@@ -292,8 +312,9 @@ class MainWindow(ctk.CTk):
         self.settings_summary.pack(anchor="w", padx=14, pady=10)
 
     def _build_footer(self, container: ctk.CTkFrame) -> None:
+        divider(container, pady=16)
         footer = ctk.CTkFrame(container, fg_color=nested_frame_color(self.COLORS["bg"]))
-        footer.pack(fill="x", pady=(4, 8))
+        footer.pack(fill="x", pady=(0, 4))
 
         primary_button(
             footer,
@@ -366,10 +387,12 @@ class MainWindow(ctk.CTk):
     ) -> None:
         minimum, maximum, step = bounds
         row = ctk.CTkFrame(parent, fg_color=nested_frame_color(self.COLORS["card"]))
-        row.pack(fill="x", pady=2)
+        row.pack(fill="x", pady=4)
+        row.grid_columnconfigure(0, weight=1)
+        row.grid_columnconfigure(1, weight=0)
 
         text_col = ctk.CTkFrame(row, fg_color=nested_frame_color(self.COLORS["card"]))
-        text_col.pack(side="left", anchor="w")
+        text_col.grid(row=0, column=0, sticky="w", padx=(0, 12))
         ctk.CTkLabel(
             text_col,
             text=label,
@@ -383,15 +406,15 @@ class MainWindow(ctk.CTk):
             font=font("small"),
             text_color=self.COLORS["muted"],
             anchor="w",
-        ).pack(anchor="w")
+        ).pack(anchor="w", pady=(2, 0))
 
         stepper = ctk.CTkFrame(
             row,
             fg_color=self.COLORS["stepper_bg"],
             corner_radius=999,
-            height=40,
+            height=42,
         )
-        stepper.pack(side="right")
+        stepper.grid(row=0, column=1, sticky="e")
         stepper.pack_propagate(False)
 
         current_value = getattr(self.store.settings, attr)

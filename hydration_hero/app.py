@@ -2,7 +2,7 @@ import platform
 import queue
 import threading
 import time
-from typing import Optional
+from typing import Callable, Optional
 
 from PIL import Image
 
@@ -47,12 +47,13 @@ class HydrationHeroApp:
         self._hero_processing = False
 
         self.animations.load_async(
-            on_ready=lambda: self.main_window.after(0, self._on_animations_ready),
+            self.main_window,
+            on_ready=self._on_animations_ready,
         )
         if platform.system() == "Darwin":
             self.main_window.createcommand("::tk::mac::ReopenApplication", self._show_main_window)
-        threading.Thread(target=self._timer_loop, daemon=True).start()
         self.main_window.after(100, self._poll_queue)
+        self.main_window.after(1000, self._tick_reminder)
         self.main_window.after(200, self._refresh_hero_status)
         self.main_window.after(2000, self._poll_hero_status)
 
@@ -81,16 +82,21 @@ class HydrationHeroApp:
         self.main_window.set_hero_state(HeroStatus.PROCESSING, "Creating your hero…")
 
         def on_progress(message: str) -> None:
-            self.main_window.after(0, lambda: self.main_window.refresh_hero_status(message, processing=True))
+            self._dispatch_to_main(
+                lambda m=message: self.main_window.refresh_hero_status(m, processing=True),
+            )
 
         def on_complete(_state) -> None:
             def finish() -> None:
                 self._hero_processing = False
-                self.animations.reload_async(on_ready=self._on_animations_ready)
+                self.animations.reload_async(
+                    self.main_window,
+                    on_ready=self._on_animations_ready,
+                )
                 self._refresh_hero_status()
                 self.main_window._flash_status("Custom hero ready! Try Preview reminder.")
 
-            self.main_window.after(0, finish)
+            self._dispatch_to_main(finish)
 
         def on_error(message: str) -> None:
             def finish() -> None:
@@ -98,7 +104,7 @@ class HydrationHeroApp:
                 state = get_hero_state()
                 self.main_window.set_hero_state(state.status, message)
 
-            self.main_window.after(0, finish)
+            self._dispatch_to_main(finish)
 
         process_hero_video(on_progress=on_progress, on_complete=on_complete, on_error=on_error)
 
@@ -112,12 +118,17 @@ class HydrationHeroApp:
         delay = self._interval_seconds() if delay_seconds is None else delay_seconds
         self.next_reminder_at = time.time() + delay
 
-    def _timer_loop(self) -> None:
-        while self.running:
-            if time.time() >= self.next_reminder_at:
-                self.event_queue.put("SHOW_REMINDER")
-                self.next_reminder_at = time.time() + 10**9
-            time.sleep(1)
+    def _tick_reminder(self) -> None:
+        if not self.running:
+            return
+        if time.time() >= self.next_reminder_at:
+            self.event_queue.put("SHOW_REMINDER")
+            self.next_reminder_at = time.time() + 10**9
+        self.main_window.after(1000, self._tick_reminder)
+
+    def _dispatch_to_main(self, callback: Callable[[], None]) -> None:
+        """Schedule UI work on the Tk main thread (safe from background threads)."""
+        self.event_queue.put(callback)
 
     def _poll_queue(self) -> None:
         try:
@@ -125,6 +136,8 @@ class HydrationHeroApp:
                 event = self.event_queue.get_nowait()
                 if event == "SHOW_REMINDER":
                     self._show_reminder()
+                elif callable(event):
+                    event()
         except queue.Empty:
             pass
         if self.running:
