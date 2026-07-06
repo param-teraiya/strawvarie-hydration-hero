@@ -114,6 +114,8 @@ def _apply_pending_frame(view: _OverlayView) -> None:
 
 
 def run_worker(argv: list[str]) -> int:
+    global _running, _panel
+
     if len(argv) < 4:
         print("ERROR usage: overlay_worker <width> <height> <screen_x> <screen_y>", flush=True)
         return 2
@@ -153,7 +155,6 @@ def run_worker(argv: list[str]) -> int:
     threading.Thread(target=_stdin_loop, daemon=True).start()
     print("READY", flush=True)
 
-    global _running, _panel
     while _running:
         with objc.autorelease_pool():
             event = app.nextEventMatchingMask_untilDate_inMode_dequeue_(  # noqa: N806
