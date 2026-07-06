@@ -31,9 +31,9 @@ python scripts/extract_default_frames.py   # once after clone (~1 min)
 python main.py
 ```
 
-On macOS, reminders use the stable card UI by default. The native transparent
-desktop overlay is experimental because Tk + AppKit can abort Python on some
-machines. To test it locally, run with `HYDRATION_HERO_ENABLE_NATIVE_OVERLAY=1`.
+On macOS, the **floating desktop hero** runs in a separate AppKit process so Tk
+does not crash. Install dependencies with `pip install -r requirements.txt`.
+Set `HYDRATION_HERO_DISABLE_NATIVE_OVERLAY=1` to force the card reminder.
 
 If the window does not appear on Mac:
 
@@ -72,7 +72,8 @@ rm -rf venv
 | `No usable Python with Tk 8.6+ found` | Same — system Python is not supported |
 | `command not found: python3` | Same — new Macs often have no Python until you install it |
 | `Tkinter is not available` | Use python.org Python, then `rm -rf venv && ./build_mac.sh` |
-| `PyEval_RestoreThread` / `Python quit unexpectedly` | Do not enable the native overlay; run normally so macOS uses the stable card reminder |
+| `PyEval_RestoreThread` / `Python quit unexpectedly` | Pull latest code (overlay now runs in a separate process). If it persists, set `HYDRATION_HERO_DISABLE_NATIVE_OVERLAY=1` |
+| Card reminder instead of floating hero | Run `pip install -r requirements.txt`, then `python check_setup.py` |
 | `Missing heroes/male/default_hero.mp4` | Run `git pull` |
 | `Frame extraction failed` | Run `xcode-select --install`, then `python scripts/extract_default_frames.py --force` |
 | `Permission denied` on `build_mac.sh` | Run `chmod +x build_mac.sh` |

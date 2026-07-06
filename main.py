@@ -9,6 +9,11 @@ os.environ.setdefault("TK_SILENCE_DEPRECATION", "1")
 if getattr(sys, "frozen", False):
     os.environ.setdefault("PYTHONUTF8", "1")
 
+if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "--overlay-worker":
+    from hydration_hero.overlay_worker import run_worker
+
+    raise SystemExit(run_worker(sys.argv[2:]))
+
 from hydration_hero.startup import check_runtime, print_startup_hint
 
 check_runtime()

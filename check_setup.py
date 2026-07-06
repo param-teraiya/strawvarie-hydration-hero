@@ -74,6 +74,28 @@ def main() -> None:
     except Exception as exc:
         fail("Tkinter window test", str(exc))
 
+    print("\n[Reminder overlay]")
+    if platform.system() == "Darwin":
+        from hydration_hero.platform_compat import (
+            macos_overlay_fallback_reason,
+            supports_macos_native_overlay,
+        )
+
+        try:
+            importlib.import_module("objc")
+            importlib.import_module("AppKit")
+            ok("pyobjc / AppKit")
+        except ImportError as exc:
+            fail("pyobjc / AppKit", str(exc))
+
+        if supports_macos_native_overlay():
+            ok("Floating desktop hero enabled (isolated AppKit worker)")
+        else:
+            reason = macos_overlay_fallback_reason() or "unknown"
+            warn("Card reminder will be used", reason)
+    else:
+        ok("Floating overlay is macOS-only")
+
     print("\n[Project files]")
     logo = os.path.join(ROOT, "assets", "brand", "strawvarie_logo.png")
     legacy_logo = os.path.join(ROOT, "hydration_hero", "assets", "strawvarie_logo.png")

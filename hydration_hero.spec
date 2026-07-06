@@ -73,8 +73,9 @@ hiddenimports = list(ctk_hiddenimports) + [
     "objc",
     "AppKit",
     "Foundation",
-    "hydration_hero.macos_overlay",
     "hydration_hero.overlay_composer",
+    "hydration_hero.overlay_subprocess",
+    "hydration_hero.overlay_worker",
 ]
 
 a = Analysis(

@@ -65,14 +65,19 @@ def check_runtime() -> None:
         _print_macos_python_fix()
         sys.exit(1)
 
+    from hydration_hero.platform_compat import macos_overlay_fallback_reason, supports_macos_native_overlay
+
     if version.major == 3 and version.minor >= 14:
         print("WARNING: Python 3.14+ detected.")
         print("         Python 3.12 is recommended for best Tk compatibility:")
         print(f"         {PYTHON_ORG_URL}")
         print()
 
-    print("Note: macOS uses the stable card reminder by default.")
-    print("      The native transparent overlay is experimental and opt-in.")
+    if supports_macos_native_overlay():
+        print("Reminder mode: floating desktop hero (isolated overlay process)")
+    else:
+        reason = macos_overlay_fallback_reason() or "unsupported setup"
+        print(f"Reminder mode: card UI ({reason})")
     print()
 
 

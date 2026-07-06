@@ -40,6 +40,7 @@ class HydrationHeroApp:
             on_drank=self._on_drank,
             on_snooze=self._on_snooze,
             on_dismiss=self._on_dismiss,
+            dispatch_to_main=self._dispatch_to_main,
         )
         self.tray_icon = None
         self._tray_thread: Optional[threading.Thread] = None

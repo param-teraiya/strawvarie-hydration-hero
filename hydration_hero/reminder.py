@@ -8,7 +8,7 @@ from PIL import Image, ImageDraw
 from hydration_hero.animation import AnimationLibrary, ScenePlayer
 from hydration_hero.brand import COLORS, REMINDER_LINE
 from hydration_hero.overlay_composer import FEET_X, FEET_Y, OVERLAY_H, OVERLAY_W, OverlayComposer
-from hydration_hero.platform_compat import supports_macos_native_overlay
+from hydration_hero.platform_compat import macos_overlay_fallback_reason, supports_macos_native_overlay
 
 WALK_IN_DELAY_MS = 40
 WALK_IN_START_X = -130
@@ -56,6 +56,7 @@ class ReminderPopup:
         on_drank: Callable[[], None],
         on_snooze: Callable[[], None],
         on_dismiss: Callable[[], None],
+        dispatch_to_main: Optional[Callable[[Callable[[], None]], None]] = None,
     ) -> None:
         self.master = master
         self.animations = animations
@@ -63,6 +64,7 @@ class ReminderPopup:
         self.on_drank = on_drank
         self.on_snooze = on_snooze
         self.on_dismiss = on_dismiss
+        self._dispatch_to_main = dispatch_to_main
         self.window: Optional[ctk.CTkToplevel] = None
         self.actions: Optional[ctk.CTkFrame] = None
         self.player: Optional[ScenePlayer] = None
@@ -82,17 +84,22 @@ class ReminderPopup:
         if self.is_open:
             return
 
-        if platform.system() == "Darwin" and supports_macos_native_overlay():
-            try:
-                self._show_macos_overlay()
-                return
-            except ImportError:
-                pass
+        if platform.system() == "Darwin":
+            if supports_macos_native_overlay():
+                try:
+                    self._show_macos_overlay()
+                    return
+                except ImportError as exc:
+                    print(f"macOS overlay unavailable, using card fallback: {exc}")
+            else:
+                reason = macos_overlay_fallback_reason()
+                if reason:
+                    print(f"Using card reminder: {reason}")
 
         self._show_card()
 
     def _show_macos_overlay(self) -> None:
-        from hydration_hero.macos_overlay import MacOSOverlayWindow
+        from hydration_hero.overlay_subprocess import SubprocessOverlayWindow
 
         self._closed = False
         self._closing = False
@@ -103,15 +110,15 @@ class ReminderPopup:
         y = screen_h - OVERLAY_H - 48
 
         try:
-            self._overlay = MacOSOverlayWindow(
+            self._overlay = SubprocessOverlayWindow(
                 self.master,
                 OVERLAY_W,
                 OVERLAY_H,
                 x,
                 y,
                 on_click=self._handle_overlay_click,
+                dispatch_to_main=self._dispatch_to_main,
             )
-            self._overlay.show()
         except Exception as exc:
             print(f"macOS overlay unavailable, using card fallback: {exc}")
             self._overlay = None
