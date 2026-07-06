@@ -11,7 +11,7 @@ SETTINGS_PATH = os.path.join(DATA_DIR, "settings.json")
 @dataclass
 class AppSettings:
     daily_goal_ml: int = 2000
-    reminder_interval_mins: float = 45
+    reminder_interval_mins: float = 1
     snooze_mins: int = 15
     default_drink_ml: int = 250
     last_reset_date: str = ""

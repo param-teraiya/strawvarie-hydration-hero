@@ -35,6 +35,9 @@ _bundle_first_match(
         ("hydration_hero/assets/strawvarie_logo.png", "hydration_hero/assets"),
     ]
 )
+for extra_asset in ("assets/brand/strawvarie_logo_inverse.png", "assets/brand/strawvarie_logo.svg"):
+    if os.path.isfile(extra_asset):
+        datas.append((extra_asset, "assets/brand"))
 _bundle_first_match(
     [
         ("assets/guide/guide.html", "assets/guide"),

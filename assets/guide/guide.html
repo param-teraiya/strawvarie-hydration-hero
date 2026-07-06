@@ -6,13 +6,14 @@
   <title>Strawvarie Hydration Hero — Setup Guide</title>
   <style>
     :root {
-      --bg: #fff8f6;
+      --bg: #fafafa;
       --card: #ffffff;
-      --accent: #c9567a;
-      --text: #2f2433;
-      --muted: #8b7e8a;
+      --accent: #1a1a1a;
+      --brand: #7ab69a;
+      --text: #1a1a1a;
+      --muted: #6b7280;
       --seafoam: #5fa892;
-      --border: #f0e4e8;
+      --border: #e5e5e5;
     }
     * { box-sizing: border-box; }
     body {
@@ -23,7 +24,8 @@
       line-height: 1.6;
     }
     .wrap { max-width: 720px; margin: 0 auto; padding: 32px 20px 64px; }
-    h1 { color: var(--accent); font-size: 1.75rem; margin-bottom: 0.25rem; }
+    .logo { height: 36px; margin-bottom: 12px; }
+    h1 { color: var(--text); font-size: 1.5rem; margin-bottom: 0.25rem; font-weight: 600; }
     .subtitle { color: var(--muted); margin-top: 0; }
     .card {
       background: var(--card);
@@ -35,9 +37,9 @@
     h2 { font-size: 1.1rem; margin-top: 0; }
     ol { padding-left: 1.25rem; }
     li { margin-bottom: 12px; }
-    a { color: var(--accent); }
+    a { color: var(--seafoam); }
     .prompt {
-      background: #faf5f7;
+      background: #f0f4f2;
       border: 1px solid var(--border);
       border-radius: 10px;
       padding: 14px;
@@ -55,9 +57,9 @@
       cursor: pointer;
       margin-top: 6px;
     }
-    button:hover { opacity: 0.9; }
+    button:hover { background: #333; }
     .path {
-      background: #f3eef0;
+      background: #f3f4f3;
       padding: 10px 12px;
       border-radius: 8px;
       font-family: ui-monospace, monospace;
@@ -70,7 +72,7 @@
     }
     .badge {
       display: inline-block;
-      background: var(--accent);
+      background: var(--brand);
       color: white;
       font-size: 0.75rem;
       font-weight: bold;
@@ -82,7 +84,8 @@
 </head>
 <body>
   <div class="wrap">
-    <h1>Strawvarie Hydration Hero</h1>
+    <img class="logo" src="../brand/strawvarie_logo.png" alt="Strawvarie" />
+    <h1>Hydration Hero — Setup Guide</h1>
     <p class="subtitle">Create your custom pixel-art hydration buddy in a few steps.</p>
 
     <div class="card">
@@ -114,7 +117,7 @@
       <p>Upload the pixel character from Step 2. Paste this prompt:</p>
       <div class="prompt" id="prompt2">Animate this character in strict 2D pixel art style. The character walks in from the left side, stops in the center, raises a metal tumbler to his mouth to take a drink, lowers it, turns around, and walks out to the right. Keep the character's appearance exactly the same. No camera movement, locked static frame. Maintain the solid magenta background perfectly flat with no shadows or lighting changes.</div>
       <button type="button" onclick="copyPrompt('prompt2')">Copy Prompt 2</button>
-      <p class="tip">The flat magenta/pink background is important — the app removes it automatically.</p>
+      <p class="tip">The flat magenta background is important — the app removes it automatically.</p>
     </div>
 
     <div class="card">
@@ -147,7 +150,7 @@
       <h2>Video tips</h2>
       <ul>
         <li>10–30 seconds is ideal</li>
-        <li>Solid magenta/pink/green background works best</li>
+        <li>Solid magenta or green background works best</li>
         <li>Character should walk in → drink → walk out</li>
         <li>Keep the camera still (no zoom or pan)</li>
       </ul>

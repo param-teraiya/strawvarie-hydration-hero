@@ -6,7 +6,7 @@ import customtkinter as ctk
 
 from hydration_hero.animation import AnimationLibrary, AnimationPlayer
 from hydration_hero.brand import BRAND_NAME, COLORS, REMINDER_LINE, WEBSITE, create_logo_image
-from hydration_hero.ui import nested_frame_color
+from hydration_hero.ui import font, ghost_button, nested_frame_color, primary_button, secondary_button
 
 
 class ReminderPopup:
@@ -39,11 +39,11 @@ class ReminderPopup:
             return
 
         self._closed = False
-        width, height = 360, 540
+        width, height = 380, 560
         screen_w = self.master.winfo_screenwidth()
         screen_h = self.master.winfo_screenheight()
-        x = screen_w - width - 24
-        y = screen_h - height - 72
+        x = screen_w - width - 28
+        y = screen_h - height - 80
 
         self.window = ctk.CTkToplevel(self.master)
         self.window.overrideredirect(True)
@@ -63,27 +63,26 @@ class ReminderPopup:
         shell.pack(fill="both", expand=True)
         shell.pack_propagate(False)
 
+        accent = ctk.CTkFrame(shell, height=4, corner_radius=0, fg_color=COLORS["brand"])
+        accent.pack(fill="x")
+
         header = ctk.CTkFrame(shell, fg_color=nested_frame_color(COLORS["card"]))
-        header.pack(fill="x", padx=20, pady=(18, 0))
+        header.pack(fill="x", padx=20, pady=(16, 0))
 
         title_block = ctk.CTkFrame(header, fg_color=nested_frame_color(COLORS["card"]))
         title_block.pack(side="left")
 
-        self._logo_image = create_logo_image(width=170)
-        ctk.CTkLabel(
-            title_block,
-            text="",
-            image=self._logo_image,
-        ).pack(anchor="w")
+        self._logo_image = create_logo_image(width=160)
+        ctk.CTkLabel(title_block, text="", image=self._logo_image).pack(anchor="w")
 
         ctk.CTkLabel(
             title_block,
-            text="Hydration Hero",
-            font=ctk.CTkFont(size=11),
+            text=f"{BRAND_NAME} · Hydration Hero",
+            font=font("small"),
             text_color=COLORS["muted"],
         ).pack(anchor="w", pady=(4, 0))
 
-        close_btn = ctk.CTkButton(
+        ctk.CTkButton(
             header,
             text="✕",
             width=32,
@@ -91,79 +90,71 @@ class ReminderPopup:
             corner_radius=16,
             fg_color=COLORS["button_secondary"],
             hover_color=COLORS["button_secondary_hover"],
-            text_color=COLORS["text"],
+            text_color=COLORS["muted"],
+            font=font("body"),
             command=self._handle_dismiss,
-        )
-        close_btn.pack(side="right")
+        ).pack(side="right")
 
         ctk.CTkLabel(
             shell,
             text=REMINDER_LINE,
-            font=ctk.CTkFont(size=14),
+            font=font("section"),
             text_color=COLORS["text"],
-        ).pack(pady=(8, 4))
+            wraplength=320,
+            justify="center",
+        ).pack(pady=(12, 2))
+
+        ctk.CTkLabel(
+            shell,
+            text="Your hero is here to help you stay on track.",
+            font=font("caption"),
+            text_color=COLORS["muted"],
+        ).pack(pady=(0, 6))
 
         canvas = tk.Canvas(
             shell,
             width=300,
-            height=260,
+            height=250,
             bg=COLORS["reminder_canvas"],
             highlightthickness=0,
             bd=0,
         )
         canvas.pack(pady=(0, 4))
 
-        self.player = AnimationPlayer(canvas, self.animations, center=(150, 130))
+        self.player = AnimationPlayer(canvas, self.animations, center=(150, 125))
         self.player.play("walk_in", 40, on_complete=self._loop_stand)
 
-        ctk.CTkButton(
+        ghost_button(
             shell,
             text=f"Shop {BRAND_NAME} tumblers →",
-            height=28,
-            corner_radius=8,
-            fg_color=COLORS["button_secondary"],
-            hover_color=COLORS["button_secondary_hover"],
-            text_color=COLORS["accent"],
-            font=ctk.CTkFont(size=11),
+            height=30,
             command=lambda: webbrowser.open(WEBSITE),
-        ).pack(pady=(0, 6))
+        ).pack(pady=(0, 4))
 
         self.actions = ctk.CTkFrame(shell, fg_color=nested_frame_color(COLORS["card"]))
         self.actions.pack(fill="x", padx=20, pady=(0, 20))
 
-        ctk.CTkButton(
+        primary_button(
             self.actions,
-            text=f"I drank! (+{self.default_drink_ml} ml)",
-            height=42,
-            corner_radius=12,
-            font=ctk.CTkFont(size=14, weight="bold"),
-            fg_color=COLORS["accent"],
-            hover_color=COLORS["accent_hover"],
+            text=f"I drank!  +{self.default_drink_ml} ml",
+            height=46,
             command=self._handle_drank,
-        ).pack(fill="x", pady=(0, 8))
+        ).pack(fill="x", pady=(0, 10))
 
         row = ctk.CTkFrame(self.actions, fg_color=nested_frame_color(COLORS["card"]))
         row.pack(fill="x")
 
-        ctk.CTkButton(
+        secondary_button(
             row,
             text="Snooze",
-            height=36,
-            corner_radius=10,
-            fg_color=COLORS["button_secondary"],
-            hover_color=COLORS["button_secondary_hover"],
-            text_color=COLORS["text"],
+            height=38,
             command=self._handle_snooze,
         ).pack(side="left", expand=True, fill="x", padx=(0, 6))
 
-        ctk.CTkButton(
+        secondary_button(
             row,
             text="Dismiss",
-            height=36,
-            corner_radius=10,
-            fg_color=COLORS["button_secondary"],
-            hover_color=COLORS["button_secondary_hover"],
-            text_color=COLORS["text"],
+            height=38,
             command=self._handle_dismiss,
         ).pack(side="left", expand=True, fill="x", padx=(6, 0))
 

@@ -1,8 +1,8 @@
-import platform
 import os
+import platform
 import subprocess
 import webbrowser
-from typing import Callable, Optional, Tuple, Union
+from typing import Callable, Dict, Optional, Tuple, Union
 
 import customtkinter as ctk
 
@@ -15,16 +15,25 @@ from hydration_hero.brand import (
     TAGLINE,
     WEBSITE,
     create_logo_image,
+    format_setting_display,
     open_setup_guide,
 )
 from hydration_hero.hero import HeroStatus
-from hydration_hero.paths import HERO_FOLDER_NAME, get_user_hero_root
+from hydration_hero.paths import get_user_hero_root
 from hydration_hero.storage import SettingsStore
 from hydration_hero.ui import (
+    accent_strip,
     apply_mac_window_size,
+    create_card,
     create_main_container,
+    divider,
+    font,
+    ghost_button,
     nested_frame_color,
+    primary_button,
     refresh_main_scroll,
+    secondary_button,
+    section_header,
 )
 
 
@@ -43,6 +52,7 @@ class MainWindow(ctk.CTk):
         self.on_minimize_to_tray = on_minimize_to_tray
         self._preview_callback = on_preview_reminder
         self._create_hero_callback = on_create_hero
+        self._setting_labels: Dict[str, ctk.CTkLabel] = {}
 
         self.title(FULL_TITLE)
         self.configure(fg_color=self.COLORS["bg"])
@@ -58,69 +68,91 @@ class MainWindow(ctk.CTk):
     def _build_ui(self) -> None:
         _shell, container = create_main_container(self, self.COLORS["bg"])
 
-        brand_row = ctk.CTkFrame(container, fg_color=nested_frame_color(self.COLORS["bg"]))
-        brand_row.pack(fill="x", pady=(0, 16))
+        self._build_header(container)
+        if not self.store.settings.onboarding_complete:
+            self._build_welcome_banner(container)
+        self._build_progress_card(container)
+        self._build_hero_card(container)
+        self._build_quick_log(container)
+        self._build_settings_card(container)
+        self._build_footer(container)
 
-        self._logo_image = create_logo_image(width=210)
-        ctk.CTkLabel(
-            brand_row,
-            text="",
-            image=self._logo_image,
-        ).pack(anchor="w")
+    def _build_header(self, container: ctk.CTkFrame) -> None:
+        brand_row = ctk.CTkFrame(container, fg_color=nested_frame_color(self.COLORS["bg"]))
+        brand_row.pack(fill="x", pady=(0, 12))
+
+        self._logo_image = create_logo_image()
+        ctk.CTkLabel(brand_row, text="", image=self._logo_image).pack(anchor="w")
 
         ctk.CTkLabel(
             brand_row,
             text=APP_NAME,
-            font=ctk.CTkFont(size=16, weight="bold"),
-            text_color=self.COLORS["text"],
+            font=font("section"),
+            text_color=self.COLORS["muted"],
         ).pack(anchor="w", pady=(8, 0))
 
         ctk.CTkLabel(
             brand_row,
             text=TAGLINE,
-            font=ctk.CTkFont(size=12),
+            font=font("caption"),
             text_color=self.COLORS["seafoam"],
         ).pack(anchor="w", pady=(2, 0))
 
         ctk.CTkLabel(
             brand_row,
             text=HERO_LINE,
-            font=ctk.CTkFont(size=13),
+            font=font("body"),
             text_color=self.COLORS["muted"],
-        ).pack(anchor="w", pady=(6, 0))
+        ).pack(anchor="w", pady=(4, 0))
 
-        self.progress_card = ctk.CTkFrame(
+    def _build_welcome_banner(self, container: ctk.CTkFrame) -> None:
+        banner = ctk.CTkFrame(
             container,
-            corner_radius=18,
-            fg_color=self.COLORS["card"],
+            corner_radius=12,
+            fg_color=self.COLORS["accent_soft"],
             border_width=1,
-            border_color=self.COLORS["card_border"],
+            border_color=self.COLORS["brand"],
         )
-        self.progress_card.pack(fill="x", pady=(0, 16))
+        banner.pack(fill="x", pady=(0, 14))
+        ctk.CTkLabel(
+            banner,
+            text="Welcome! Log your first drink, set reminders below, then minimize to the dock.",
+            font=font("caption"),
+            text_color=self.COLORS["text"],
+            wraplength=400,
+            justify="left",
+        ).pack(anchor="w", padx=16, pady=12)
 
-        inner = ctk.CTkFrame(self.progress_card, fg_color=nested_frame_color(self.COLORS["card"]))
-        inner.pack(fill="x", padx=20, pady=20)
+    def _build_progress_card(self, container: ctk.CTkFrame) -> None:
+        _card, inner = create_card(container)
+        accent_strip(inner)
+        ctk.CTkLabel(
+            inner,
+            text="Today's hydration",
+            font=font("section"),
+            text_color=self.COLORS["text"],
+        ).pack(anchor="w")
 
         self.amount_label = ctk.CTkLabel(
             inner,
             text="0 / 2000 ml",
-            font=ctk.CTkFont(size=22, weight="bold"),
+            font=font("hero_amount"),
             text_color=self.COLORS["text"],
         )
-        self.amount_label.pack(anchor="w")
+        self.amount_label.pack(anchor="w", pady=(8, 0))
 
         self.percent_label = ctk.CTkLabel(
             inner,
             text="0% of daily goal",
-            font=ctk.CTkFont(size=13),
+            font=font("caption"),
             text_color=self.COLORS["muted"],
         )
-        self.percent_label.pack(anchor="w", pady=(4, 12))
+        self.percent_label.pack(anchor="w", pady=(2, 12))
 
         self.progress_bar = ctk.CTkProgressBar(
             inner,
-            height=14,
-            corner_radius=8,
+            height=12,
+            corner_radius=6,
             progress_color=self.COLORS["progress_fill"],
             fg_color=self.COLORS["progress_bg"],
         )
@@ -130,83 +162,49 @@ class MainWindow(ctk.CTk):
         self.status_label = ctk.CTkLabel(
             inner,
             text="",
-            font=ctk.CTkFont(size=12),
+            font=font("caption"),
             text_color=self.COLORS["success"],
         )
         self.status_label.pack(anchor="w", pady=(10, 0))
 
-        hero_card = ctk.CTkFrame(
+    def _build_hero_card(self, container: ctk.CTkFrame) -> None:
+        section_header(
             container,
-            corner_radius=18,
-            fg_color=self.COLORS["card"],
-            border_width=1,
-            border_color=self.COLORS["card_border"],
+            "Your hydration hero",
+            "Personalize with a Gemini pixel animation, or use the bundled default.",
         )
-        hero_card.pack(fill="x", pady=(0, 16))
+        _card, hero_inner = create_card(container)
 
-        hero_inner = ctk.CTkFrame(hero_card, fg_color=nested_frame_color(self.COLORS["card"]))
-        hero_inner.pack(fill="x", padx=20, pady=20)
-
-        ctk.CTkLabel(
+        ghost_button(
             hero_inner,
-            text="Your hydration hero",
-            font=ctk.CTkFont(size=14, weight="bold"),
-            text_color=self.COLORS["text"],
-        ).pack(anchor="w")
-
-        ctk.CTkLabel(
-            hero_inner,
-            text="Follow the setup guide to create your pixel hero with Gemini, then drop hero.mp4 here.",
-            font=ctk.CTkFont(size=12),
-            text_color=self.COLORS["muted"],
-            wraplength=360,
-            justify="left",
-        ).pack(anchor="w", pady=(6, 8))
-
-        ctk.CTkButton(
-            hero_inner,
-            text="Open setup guide (step-by-step)",
-            height=34,
-            corner_radius=10,
-            fg_color=self.COLORS["button_secondary"],
-            hover_color=self.COLORS["button_secondary_hover"],
-            text_color=self.COLORS["accent"],
-            border_width=1,
-            border_color=self.COLORS["card_border"],
+            text="Open setup guide",
             command=open_setup_guide,
         ).pack(fill="x", pady=(0, 10))
 
         self.hero_folder_label = ctk.CTkLabel(
             hero_inner,
-            text=f"~/ {HERO_FOLDER_NAME} / hero.mp4",
-            font=ctk.CTkFont(size=11),
-            text_color=self.COLORS["text"],
-            wraplength=360,
+            text=os.path.join(get_user_hero_root(), "hero.mp4"),
+            font=font("small"),
+            text_color=self.COLORS["muted"],
+            wraplength=400,
             justify="left",
         )
-        self.hero_folder_label.pack(anchor="w", pady=(0, 10))
+        self.hero_folder_label.pack(anchor="w", pady=(0, 12))
 
         hero_actions = ctk.CTkFrame(hero_inner, fg_color=nested_frame_color(self.COLORS["card"]))
         hero_actions.pack(fill="x")
 
-        ctk.CTkButton(
+        secondary_button(
             hero_actions,
             text="Open hero folder",
-            height=36,
-            corner_radius=10,
-            fg_color=self.COLORS["button_secondary"],
-            hover_color=self.COLORS["button_secondary_hover"],
-            text_color=self.COLORS["text"],
+            height=38,
             command=self._open_hero_folder,
         ).pack(side="left", expand=True, fill="x", padx=(0, 6))
 
-        self.create_hero_btn = ctk.CTkButton(
+        self.create_hero_btn = primary_button(
             hero_actions,
             text="Create my hero",
-            height=36,
-            corner_radius=10,
-            fg_color=self.COLORS["accent"],
-            hover_color=self.COLORS["accent_hover"],
+            height=38,
             state="disabled",
             command=self._request_create_hero,
         )
@@ -215,139 +213,112 @@ class MainWindow(ctk.CTk):
         self.hero_status_label = ctk.CTkLabel(
             hero_inner,
             text="",
-            font=ctk.CTkFont(size=12),
+            font=font("caption"),
             text_color=self.COLORS["seafoam"],
-            wraplength=360,
+            wraplength=400,
             justify="left",
         )
-        self.hero_status_label.pack(anchor="w", pady=(10, 0))
+        self.hero_status_label.pack(anchor="w", pady=(12, 0))
 
-        ctk.CTkLabel(
-            container,
-            text="Quick log",
-            font=ctk.CTkFont(size=14, weight="bold"),
-            text_color=self.COLORS["text"],
-        ).pack(anchor="w", pady=(0, 8))
+    def _build_quick_log(self, container: ctk.CTkFrame) -> None:
+        section_header(container, "Quick log", "Tap to add water to today's total.")
 
         quick_row = ctk.CTkFrame(container, fg_color=nested_frame_color(self.COLORS["bg"]))
-        quick_row.pack(fill="x", pady=(0, 12))
+        quick_row.pack(fill="x", pady=(0, 10))
         quick_row.grid_columnconfigure((0, 1, 2), weight=1)
 
         for col, amount in enumerate((250, 500, 750)):
-            ctk.CTkButton(
+            secondary_button(
                 quick_row,
                 text=f"+{amount} ml",
-                height=44,
-                corner_radius=12,
-                fg_color=self.COLORS["button_secondary"],
-                hover_color=self.COLORS["button_secondary_hover"],
-                text_color=self.COLORS["text"],
+                height=46,
+                font=font("body_bold"),
                 command=lambda ml=amount: self._log_water(ml),
             ).grid(row=0, column=col, sticky="ew", padx=(0 if col == 0 else 6, 0))
 
         custom_row = ctk.CTkFrame(container, fg_color=nested_frame_color(self.COLORS["bg"]))
-        custom_row.pack(fill="x", pady=(0, 20))
+        custom_row.pack(fill="x", pady=(0, 6))
 
         self.custom_entry = ctk.CTkEntry(
             custom_row,
             placeholder_text="Custom amount (ml)",
-            height=42,
+            height=44,
             corner_radius=12,
             fg_color=self.COLORS["card"],
             border_color=self.COLORS["card_border"],
             text_color=self.COLORS["text"],
+            font=font("body"),
         )
         self.custom_entry.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        self.custom_entry.bind("<Return>", lambda _e: self._log_custom())
 
-        ctk.CTkButton(
+        primary_button(
             custom_row,
             text="Add",
-            width=80,
-            height=42,
-            corner_radius=12,
-            fg_color=self.COLORS["accent"],
-            hover_color=self.COLORS["accent_hover"],
+            width=88,
+            height=44,
             command=self._log_custom,
         ).pack(side="right")
 
-        if platform.system() == "Darwin":
-            ctk.CTkLabel(
-                container,
-                text="Scroll down for Settings · Preview · Minimize to dock ↓",
-                font=ctk.CTkFont(size=11),
-                text_color=self.COLORS["muted"],
-            ).pack(anchor="w", pady=(0, 10))
-
-        settings_card = ctk.CTkFrame(
+    def _build_settings_card(self, container: ctk.CTkFrame) -> None:
+        section_header(
             container,
-            corner_radius=18,
-            fg_color=self.COLORS["card"],
-            border_width=1,
-            border_color=self.COLORS["card_border"],
+            "Reminders & preferences",
+            "Adjust goals and how often your hero nudges you.",
         )
-        settings_card.pack(fill="x", pady=(0, 16))
+        _card, settings_inner = create_card(container)
 
-        settings_inner = ctk.CTkFrame(settings_card, fg_color=nested_frame_color(self.COLORS["card"]))
-        settings_inner.pack(fill="x", padx=20, pady=20)
+        settings = [
+            ("Daily goal", "How much to drink each day", "daily_goal_ml", (1000, 5000, 250), " ml"),
+            ("Reminder every", "Time between nudges", "reminder_interval_mins", (0.5, 120, 0.5), " min"),
+            ("Snooze for", "Delay when you snooze", "snooze_mins", (5, 60, 5), " min"),
+            ("Default drink", "Logged per sip", "default_drink_ml", (100, 500, 50), " ml"),
+        ]
+        for index, (label, subtitle, attr, bounds, unit) in enumerate(settings):
+            if index > 0:
+                divider(settings_inner, pady=10)
+            self._add_setting_row(settings_inner, label, subtitle, attr, bounds, unit)
 
-        ctk.CTkLabel(
-            settings_inner,
-            text="Settings",
-            font=ctk.CTkFont(size=14, weight="bold"),
+        summary_wrap = ctk.CTkFrame(settings_inner, fg_color=self.COLORS["accent_soft"], corner_radius=12)
+        summary_wrap.pack(fill="x", pady=(18, 0))
+        self.settings_summary = ctk.CTkLabel(
+            summary_wrap,
+            text="",
+            font=font("small"),
             text_color=self.COLORS["text"],
-        ).pack(anchor="w", pady=(0, 12))
-
-        self._add_setting_row(settings_inner, "Daily goal (ml)", "daily_goal_ml", (1000, 5000, 250))
-        self._add_setting_row(
-            settings_inner,
-            "Reminder every (min)",
-            "reminder_interval_mins",
-            (0.5, 120, 0.5),
+            wraplength=380,
+            justify="left",
         )
-        self._add_setting_row(settings_inner, "Snooze (min)", "snooze_mins", (5, 60, 5))
-        self._add_setting_row(settings_inner, "Default drink (ml)", "default_drink_ml", (100, 500, 50))
+        self.settings_summary.pack(anchor="w", padx=14, pady=10)
 
+    def _build_footer(self, container: ctk.CTkFrame) -> None:
         footer = ctk.CTkFrame(container, fg_color=nested_frame_color(self.COLORS["bg"]))
-        footer.pack(fill="x")
+        footer.pack(fill="x", pady=(4, 8))
 
-        ctk.CTkButton(
+        primary_button(
             footer,
             text="Preview reminder",
-            height=40,
-            corner_radius=12,
-            fg_color=self.COLORS["accent"],
-            hover_color=self.COLORS["accent_hover"],
             command=self._request_preview,
         ).pack(fill="x", pady=(0, 8))
 
-        ctk.CTkButton(
+        secondary_button(
             footer,
-            text="Minimize to tray" if platform.system() != "Darwin" else "Minimize to dock",
-            height=40,
-            corner_radius=12,
-            fg_color=self.COLORS["button_secondary"],
-            hover_color=self.COLORS["button_secondary_hover"],
-            text_color=self.COLORS["text"],
+            text="Minimize to dock" if platform.system() == "Darwin" else "Minimize to tray",
             command=self.on_minimize_to_tray,
         ).pack(fill="x", pady=(0, 12))
 
-        ctk.CTkButton(
+        ghost_button(
             footer,
             text="Shop tumblers at strawvarie.in →",
-            height=36,
-            corner_radius=12,
-            fg_color=self.COLORS["button_secondary"],
-            hover_color=self.COLORS["button_secondary_hover"],
-            text_color=self.COLORS["accent"],
             command=lambda: webbrowser.open(WEBSITE),
-        ).pack(fill="x", pady=(0, 4))
+        ).pack(fill="x", pady=(0, 8))
 
         ctk.CTkLabel(
             footer,
             text=FOOTER_LINE,
-            font=ctk.CTkFont(size=11),
+            font=font("small"),
             text_color=self.COLORS["muted"],
-        ).pack(anchor="w")
+        ).pack(anchor="center")
 
     def set_ready(self, ready: bool) -> None:
         if ready:
@@ -375,7 +346,7 @@ class MainWindow(ctk.CTk):
         self.hero_folder_label.configure(text=os.path.join(get_user_hero_root(), "hero.mp4"))
         self.hero_status_label.configure(
             text=message,
-            text_color=self.COLORS["accent"] if processing else self.COLORS["seafoam"],
+            text_color=self.COLORS["brand"] if processing else self.COLORS["seafoam"],
         )
 
     def set_hero_state(self, status: HeroStatus, message: str) -> None:
@@ -384,74 +355,90 @@ class MainWindow(ctk.CTk):
         self.refresh_hero_status(message, processing=processing)
         self.create_hero_btn.configure(state="normal" if can_create else "disabled")
 
-    @staticmethod
-    def _format_setting_value(value: Union[int, float]) -> str:
-        if isinstance(value, float) and not value.is_integer():
-            return str(value).rstrip("0").rstrip(".")
-        return str(int(value))
-
     def _add_setting_row(
         self,
         parent: ctk.CTkFrame,
         label: str,
+        subtitle: str,
         attr: str,
         bounds: Tuple[Union[int, float], Union[int, float], Union[int, float]],
+        unit: str = "",
     ) -> None:
         minimum, maximum, step = bounds
         row = ctk.CTkFrame(parent, fg_color=nested_frame_color(self.COLORS["card"]))
-        row.pack(fill="x", pady=6)
+        row.pack(fill="x", pady=2)
 
+        text_col = ctk.CTkFrame(row, fg_color=nested_frame_color(self.COLORS["card"]))
+        text_col.pack(side="left", anchor="w")
         ctk.CTkLabel(
-            row,
+            text_col,
             text=label,
-            font=ctk.CTkFont(size=13),
+            font=font("body_bold"),
+            text_color=self.COLORS["text"],
+            anchor="w",
+        ).pack(anchor="w")
+        ctk.CTkLabel(
+            text_col,
+            text=subtitle,
+            font=font("small"),
             text_color=self.COLORS["muted"],
-        ).pack(side="left")
+            anchor="w",
+        ).pack(anchor="w")
+
+        stepper = ctk.CTkFrame(
+            row,
+            fg_color=self.COLORS["stepper_bg"],
+            corner_radius=999,
+            height=40,
+        )
+        stepper.pack(side="right")
+        stepper.pack_propagate(False)
 
         current_value = getattr(self.store.settings, attr)
         value_label = ctk.CTkLabel(
-            row,
-            text=self._format_setting_value(current_value),
-            font=ctk.CTkFont(size=13, weight="bold"),
+            stepper,
+            text=format_setting_display(current_value, unit),
+            font=font("body_bold"),
             text_color=self.COLORS["text"],
-            width=60,
+            width=78,
         )
-        value_label.pack(side="right")
+        self._setting_labels[attr] = value_label
 
         def change(delta: Union[int, float]) -> None:
             current = getattr(self.store.settings, attr)
             updated = round(current + delta, 2)
             updated = max(minimum, min(maximum, updated))
             self.store.update(**{attr: updated})
-            value_label.configure(text=self._format_setting_value(updated))
+            value_label.configure(text=format_setting_display(updated, unit))
             self.refresh()
 
-        btn_frame = ctk.CTkFrame(row, fg_color=nested_frame_color(self.COLORS["card"]))
-        btn_frame.pack(side="right", padx=(8, 0))
-
-        ctk.CTkButton(
-            btn_frame,
+        minus = ctk.CTkButton(
+            stepper,
             text="−",
-            width=30,
-            height=28,
-            corner_radius=8,
-            fg_color=self.COLORS["button_secondary"],
+            width=34,
+            height=34,
+            corner_radius=999,
+            fg_color=self.COLORS["card"],
             hover_color=self.COLORS["button_secondary_hover"],
             text_color=self.COLORS["text"],
+            font=font("section"),
             command=lambda: change(-step),
-        ).pack(side="left", padx=(0, 4))
-
-        ctk.CTkButton(
-            btn_frame,
+        )
+        minus.pack(side="left", padx=(3, 0), pady=3)
+        value_label.pack(side="left")
+        plus = ctk.CTkButton(
+            stepper,
             text="+",
-            width=30,
-            height=28,
-            corner_radius=8,
-            fg_color=self.COLORS["button_secondary"],
-            hover_color=self.COLORS["button_secondary_hover"],
-            text_color=self.COLORS["text"],
+            width=34,
+            height=34,
+            corner_radius=999,
+            fg_color=self.COLORS["accent"],
+            hover_color=self.COLORS["accent_hover"],
+            text_color="#FFFFFF",
+            font=font("section"),
             command=lambda: change(step),
-        ).pack(side="left")
+        )
+        plus.pack(side="left", padx=(0, 3), pady=3)
 
     def _log_water(self, amount_ml: int) -> None:
         self.store.add_water(amount_ml)
@@ -485,9 +472,33 @@ class MainWindow(ctk.CTk):
 
         remaining = max(settings.daily_goal_ml - settings.today_ml, 0)
         if progress >= 1.0:
-            self.status_label.configure(text="Goal reached! Great job today.", text_color=self.COLORS["success"])
+            self.status_label.configure(
+                text="Goal reached — great job today!",
+                text_color=self.COLORS["success"],
+            )
         elif remaining > 0:
-            self.status_label.configure(text=f"{remaining} ml to go", text_color=self.COLORS["muted"])
+            self.status_label.configure(
+                text=f"{remaining} ml remaining",
+                text_color=self.COLORS["muted"],
+            )
+
+        interval = format_setting_display(settings.reminder_interval_mins, " min")
+        snooze = format_setting_display(settings.snooze_mins, " min")
+        drink = format_setting_display(settings.default_drink_ml, " ml")
+        self.settings_summary.configure(
+            text=f"Reminders every {interval} · Snooze {snooze} · Logs +{drink} per sip",
+        )
+
+        for attr, unit in (
+            ("daily_goal_ml", " ml"),
+            ("reminder_interval_mins", " min"),
+            ("snooze_mins", " min"),
+            ("default_drink_ml", " ml"),
+        ):
+            label = self._setting_labels.get(attr)
+            if label is not None:
+                value = getattr(settings, attr)
+                label.configure(text=format_setting_display(value, unit))
 
     def _handle_close(self) -> None:
         self.on_minimize_to_tray()

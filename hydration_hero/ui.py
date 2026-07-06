@@ -6,7 +6,15 @@ from typing import Tuple, Union
 
 import customtkinter as ctk
 
+from hydration_hero.brand import CARD_RADIUS, COLORS, CONTENT_WIDTH, FONTS
+
 WidgetContainer = Union[ctk.CTkFrame, ctk.CTkScrollableFrame]
+
+
+def font(name: str) -> ctk.CTkFont:
+    family, size, *rest = FONTS[name]
+    weight = rest[0] if rest else "normal"
+    return ctk.CTkFont(size=size, weight=weight)
 
 
 def init_customtkinter() -> None:
@@ -109,17 +117,111 @@ def create_main_container(parent: ctk.CTk, bg_color: str) -> Tuple[WidgetContain
 
 
 def apply_mac_window_size(window: ctk.CTk) -> None:
-    """Use most of the screen height on Mac so more settings are visible."""
+    """Size and center the main dashboard window."""
+    width = CONTENT_WIDTH
     if not use_mac_scroll_workaround():
-        window.geometry("440x720")
+        center_window(window, width, 720)
         window.minsize(400, 560)
         return
 
     window.update_idletasks()
     screen_h = window.winfo_screenheight()
-    height = min(960, max(680, screen_h - 100))
-    window.geometry(f"440x{height}")
+    height = min(920, max(700, screen_h - 80))
+    center_window(window, width, height)
     window.minsize(400, 560)
+
+
+def center_window(window: ctk.CTk, width: int, height: int) -> None:
+    window.update_idletasks()
+    screen_w = window.winfo_screenwidth()
+    screen_h = window.winfo_screenheight()
+    x = max(0, (screen_w - width) // 2)
+    y = max(0, (screen_h - height) // 2 - 24)
+    window.geometry(f"{width}x{height}+{x}+{y}")
+
+
+def section_header(parent: ctk.CTkFrame, title: str, subtitle: str = "") -> None:
+    block = ctk.CTkFrame(parent, fg_color=nested_frame_color(COLORS["bg"]))
+    block.pack(fill="x", pady=(0, 10))
+    ctk.CTkLabel(
+        block,
+        text=title,
+        font=font("section"),
+        text_color=COLORS["text"],
+        anchor="w",
+    ).pack(fill="x")
+    if subtitle:
+        ctk.CTkLabel(
+            block,
+            text=subtitle,
+            font=font("caption"),
+            text_color=COLORS["muted"],
+            anchor="w",
+            wraplength=CONTENT_WIDTH - 64,
+            justify="left",
+        ).pack(fill="x", pady=(2, 0))
+
+
+def create_card(parent: ctk.CTkFrame) -> Tuple[ctk.CTkFrame, ctk.CTkFrame]:
+    card = ctk.CTkFrame(
+        parent,
+        corner_radius=CARD_RADIUS,
+        fg_color=COLORS["card"],
+        border_width=1,
+        border_color=COLORS["card_border"],
+    )
+    card.pack(fill="x", pady=(0, 14))
+    inner = ctk.CTkFrame(card, fg_color=nested_frame_color(COLORS["card"]))
+    inner.pack(fill="x", padx=20, pady=18)
+    return card, inner
+
+
+def divider(parent: ctk.CTkFrame, *, pady: int = 8) -> None:
+    ctk.CTkFrame(parent, height=1, fg_color=COLORS["divider"]).pack(fill="x", pady=pady)
+
+
+def accent_strip(parent: ctk.CTkFrame, height: int = 4) -> None:
+    strip = ctk.CTkFrame(parent, height=height, corner_radius=2, fg_color=COLORS["brand"])
+    strip.pack(fill="x", pady=(0, 12))
+
+
+def primary_button(parent, **kwargs) -> ctk.CTkButton:
+    defaults = {
+        "height": 42,
+        "corner_radius": 12,
+        "fg_color": COLORS["accent"],
+        "hover_color": COLORS["accent_hover"],
+        "text_color": "#FFFFFF",
+        "font": font("body_bold"),
+    }
+    defaults.update(kwargs)
+    return ctk.CTkButton(parent, **defaults)
+
+
+def secondary_button(parent, **kwargs) -> ctk.CTkButton:
+    defaults = {
+        "height": 40,
+        "corner_radius": 12,
+        "fg_color": COLORS["button_secondary"],
+        "hover_color": COLORS["button_secondary_hover"],
+        "text_color": COLORS["text"],
+        "font": font("body"),
+    }
+    defaults.update(kwargs)
+    return ctk.CTkButton(parent, **defaults)
+
+
+def ghost_button(parent, **kwargs) -> ctk.CTkButton:
+    defaults = {
+        "height": 36,
+        "corner_radius": 10,
+        "fg_color": COLORS["button_secondary"],
+        "hover_color": COLORS["button_secondary_hover"],
+        "text_color": COLORS["link"],
+        "font": font("caption"),
+    }
+    defaults.update(kwargs)
+    return ctk.CTkButton(parent, **defaults)
 
 
 def refresh_main_scroll(window: ctk.CTk) -> None:

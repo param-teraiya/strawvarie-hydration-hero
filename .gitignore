@@ -43,6 +43,10 @@ video.mp4
 # Local processed frames (production path: ~/Strawvarie Hydration Hero/processed/)
 processed/
 
+# Scratch logo files at repo root (canonical copies live in assets/brand/)
+Strawvarie Logo.svg
+Strawvarie Logo BG Black (1).png
+
 # Scratch / one-off dev scripts
 
 # OS

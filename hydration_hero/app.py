@@ -187,7 +187,7 @@ class HydrationHeroApp:
 
     def _create_tray_image(self) -> Image.Image:
         logo = create_tray_logo(size=64)
-        canvas = Image.new("RGBA", (64, 64), (255, 248, 246, 255))
+        canvas = Image.new("RGBA", (64, 64), (250, 250, 250, 255))
         x = (64 - logo.width) // 2
         y = (64 - logo.height) // 2
         canvas.paste(logo, (x, y), logo)
