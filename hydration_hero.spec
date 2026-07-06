@@ -65,6 +65,8 @@ hiddenimports = list(ctk_hiddenimports) + [
     "PIL._tkinter_finder",
     "numpy",
     "cv2",
+    "customtkinter.windows.widgets",
+    "customtkinter.windows.widgets.theme",
 ]
 
 a = Analysis(
@@ -94,7 +96,7 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=False,
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
@@ -109,7 +111,7 @@ coll = COLLECT(
     a.zipfiles,
     a.datas,
     strip=False,
-    upx=True,
+    upx=False,
     upx_exclude=[],
     name="Strawvarie Hydration Hero",
 )

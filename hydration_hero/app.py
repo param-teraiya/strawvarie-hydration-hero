@@ -13,12 +13,13 @@ from hydration_hero.main_window import MainWindow
 from hydration_hero.paths import ensure_user_hero_root
 from hydration_hero.reminder import ReminderPopup
 from hydration_hero.storage import SettingsStore
-from hydration_hero.ui import init_customtkinter
+from hydration_hero.ui import init_customtkinter, verify_frozen_assets
 
 
 class HydrationHeroApp:
     def __init__(self) -> None:
         init_customtkinter()
+        verify_frozen_assets()
         ensure_user_hero_root()
         self.store = SettingsStore(on_change=self._on_settings_changed)
         self.animations = AnimationLibrary()
@@ -237,7 +238,12 @@ class HydrationHeroApp:
             self.main_window.after(0, self._show_main_window)
         else:
             self.main_window.after(0, self._hide_main_window)
+        self.main_window.after(200, self._refresh_window)
         self.main_window.mainloop()
+
+    def _refresh_window(self) -> None:
+        self.main_window.update_idletasks()
+        self.main_window.update()
 
     def quit(self) -> None:
         self.running = False

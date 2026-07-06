@@ -38,7 +38,15 @@ COLORS = {
 
 
 def create_logo_image(width: int = 210) -> ctk.CTkImage:
-    image = Image.open(get_logo_path())
+    try:
+        image = Image.open(get_logo_path())
+    except OSError:
+        placeholder = Image.new("RGBA", (width, max(1, width // 4)), (201, 86, 122, 255))
+        return ctk.CTkImage(
+            light_image=placeholder,
+            dark_image=placeholder,
+            size=(width, max(1, width // 4)),
+        )
     height = max(1, int(width * image.height / image.width))
     return ctk.CTkImage(light_image=image, dark_image=image, size=(width, height))
 

@@ -20,7 +20,7 @@ from hydration_hero.brand import (
 from hydration_hero.hero import HeroStatus
 from hydration_hero.paths import HERO_FOLDER_NAME, get_user_hero_root
 from hydration_hero.storage import SettingsStore
-from hydration_hero.ui import fix_scrollable_frame, nested_frame_color
+from hydration_hero.ui import create_main_container, mac_window_geometry, nested_frame_color
 
 
 class MainWindow(ctk.CTk):
@@ -40,7 +40,7 @@ class MainWindow(ctk.CTk):
         self._create_hero_callback = on_create_hero
 
         self.title(FULL_TITLE)
-        self.geometry("440x720")
+        self.geometry(mac_window_geometry())
         self.minsize(400, 560)
         self.configure(fg_color=self.COLORS["bg"])
 
@@ -50,10 +50,7 @@ class MainWindow(ctk.CTk):
         self.update_idletasks()
 
     def _build_ui(self) -> None:
-        self.scroll = ctk.CTkScrollableFrame(self, fg_color=self.COLORS["bg"])
-        self.scroll.pack(fill="both", expand=True, padx=16, pady=16)
-        fix_scrollable_frame(self.scroll, self.COLORS["bg"])
-        container = self.scroll
+        _shell, container = create_main_container(self, self.COLORS["bg"])
 
         brand_row = ctk.CTkFrame(container, fg_color=nested_frame_color(self.COLORS["bg"]))
         brand_row.pack(fill="x", pady=(0, 16))
