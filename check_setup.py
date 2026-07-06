@@ -74,21 +74,27 @@ def main() -> None:
         fail("Tkinter window test", str(exc))
 
     print("\n[Project files]")
-    logo = os.path.join(ROOT, "hydration_hero", "assets", "strawvarie_logo.png")
+    logo = os.path.join(ROOT, "assets", "brand", "strawvarie_logo.png")
+    legacy_logo = os.path.join(ROOT, "hydration_hero", "assets", "strawvarie_logo.png")
     if os.path.exists(logo):
         ok("Strawvarie logo")
+    elif os.path.exists(legacy_logo):
+        ok("Strawvarie logo (legacy path)")
     else:
         fail("Strawvarie logo missing", logo)
 
     hero_dir = os.path.join(ROOT, "heroes", "male")
+    frame_dir = os.path.join(hero_dir, "frames")
     default_video = os.path.join(hero_dir, "default_hero.mp4")
-    frames = glob.glob(os.path.join(hero_dir, "frame_*.png"))
+    frames = glob.glob(os.path.join(frame_dir, "frame_*.png"))
+    if len(frames) < 10:
+        frames = glob.glob(os.path.join(hero_dir, "frame_*.png"))
     if len(frames) >= 10:
-        ok(f"Animation frames ({len(frames)} in heroes/male/)")
+        ok(f"Animation frames ({len(frames)} in heroes/male/frames/)")
     elif frames:
         warn(f"Only {len(frames)} frame files found", "Expected ~239 frames")
     elif os.path.isfile(default_video):
-        fail("Default hero frames not extracted", hero_dir)
+        fail("Default hero frames not extracted", frame_dir)
         print("       Run: python scripts/extract_default_frames.py")
     else:
         fail("Missing default hero video", default_video)

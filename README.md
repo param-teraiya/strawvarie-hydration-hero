@@ -35,10 +35,40 @@ python check_setup.py
 
 ## Build Mac app (for sharing)
 
+**Requirements:** macOS only. **Apple Silicon (M1–M5) is supported** — a build on your Mac produces a native ARM `.app` for other Apple Silicon Macs.
+
+### New MacBook (M5 / M4 / M3) — do this first
+
+1. Install **Python 3.12** from [python.org/macOS](https://www.python.org/downloads/macos/) (universal2 installer)
+2. Install Xcode command-line tools (if prompted, or run `xcode-select --install`)
+3. Clone/pull the repo, then build:
+
 ```bash
+git pull
 chmod +x build_mac.sh
 ./build_mac.sh
 ```
+
+If a previous attempt failed, reset the venv and retry:
+
+```bash
+rm -rf venv
+./build_mac.sh
+```
+
+### Build troubleshooting
+
+| Problem | Fix |
+|---------|-----|
+| `No usable Python 3.8+ found` | Install Python 3.12 from [python.org](https://www.python.org/downloads/macos/) |
+| `command not found: python3` | Same — new Macs often have no Python until you install it |
+| `Tkinter is not available` | Use python.org Python, then `rm -rf venv && ./build_mac.sh` |
+| `Missing heroes/male/default_hero.mp4` | Run `git pull` |
+| `Frame extraction failed` | Run `xcode-select --install`, then `python scripts/extract_default_frames.py --force` |
+| `Permission denied` on `build_mac.sh` | Run `chmod +x build_mac.sh` |
+| PyInstaller / pip errors on M5 | `rm -rf venv`, install Python 3.12 from python.org, rebuild |
+
+If it still fails, run `./build_mac.sh` and send the **full terminal output**.
 
 Outputs:
 
@@ -67,10 +97,13 @@ build_mac.sh            PyInstaller Mac build script
 hydration_hero.spec     PyInstaller config
 requirements.txt        Runtime dependencies
 requirements-build.txt  Build dependencies (PyInstaller)
-hydration_hero/         Application package
-  assets/               Logo + setup guide HTML
-heroes/male/            Default hero source video (committed)
-  default_hero.mp4      Extract to frame_*.png locally (gitignored)
+assets/                 Static app assets (committed)
+  brand/                Logo
+  guide/                Customer setup guide HTML
+heroes/male/            Default bundled hero
+  default_hero.mp4      Source video (committed, ~2.5 MB)
+  frames/               Extracted sprites (gitignored, run extract script)
+hydration_hero/         Application Python package
 scripts/                extract_default_frames.py
 ```
 

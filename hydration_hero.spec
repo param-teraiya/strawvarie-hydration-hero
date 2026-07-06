@@ -1,5 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 import glob
+import os
+import sys
 
 from PyInstaller.utils.hooks import collect_all
 
@@ -8,11 +10,56 @@ block_cipher = None
 ctk_datas, ctk_binaries, ctk_hiddenimports = collect_all("customtkinter")
 
 datas = list(ctk_datas)
-datas.append(("hydration_hero/assets/strawvarie_logo.png", "hydration_hero/assets"))
-datas.append(("hydration_hero/assets/guide.html", "hydration_hero/assets"))
 
-for frame_path in sorted(glob.glob("heroes/male/frame_*.png")):
-    datas.append((frame_path, "heroes/male"))
+
+def _add_data(source: str, destination: str) -> bool:
+    if os.path.isfile(source):
+        datas.append((source, destination))
+        return True
+    return False
+
+
+def _bundle_first_match(pairs):
+    for source, destination in pairs:
+        if _add_data(source, destination):
+            return
+    print("ERROR: Missing bundled asset. Expected one of:", file=sys.stderr)
+    for source, _destination in pairs:
+        print(f"  - {source}", file=sys.stderr)
+    raise SystemExit(1)
+
+
+_bundle_first_match(
+    [
+        ("assets/brand/strawvarie_logo.png", "assets/brand"),
+        ("hydration_hero/assets/strawvarie_logo.png", "hydration_hero/assets"),
+    ]
+)
+_bundle_first_match(
+    [
+        ("assets/guide/guide.html", "assets/guide"),
+        ("hydration_hero/assets/guide.html", "hydration_hero/assets"),
+    ]
+)
+
+frame_paths = sorted(
+    set(
+        glob.glob("heroes/male/frames/frame_*.png")
+        + glob.glob("heroes/male/frame_*.png")
+    )
+)
+if not frame_paths:
+    print(
+        "ERROR: No hero frames found.\n"
+        "       Run: python scripts/extract_default_frames.py\n"
+        "       (requires heroes/male/default_hero.mp4 from git)",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
+
+for frame_path in frame_paths:
+    destination = os.path.dirname(frame_path)
+    datas.append((frame_path, destination))
 
 hiddenimports = list(ctk_hiddenimports) + [
     "PIL._tkinter_finder",

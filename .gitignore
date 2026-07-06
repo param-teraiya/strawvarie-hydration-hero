@@ -30,8 +30,8 @@ Strawvarie-Hydration-Hero-mac.zip
 .hydration_hero/
 
 # Generated default hero sprites (see scripts/extract_default_frames.py)
+heroes/male/frames/
 frame_*.png
-heroes/male/frame_*.png
 
 # Scratch / custom hero videos at repo root (bundled source: heroes/male/default_hero.mp4)
 hero.mp4
