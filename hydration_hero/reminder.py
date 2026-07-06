@@ -6,6 +6,7 @@ import customtkinter as ctk
 
 from hydration_hero.animation import AnimationLibrary, AnimationPlayer
 from hydration_hero.brand import BRAND_NAME, COLORS, REMINDER_LINE, WEBSITE, create_logo_image
+from hydration_hero.ui import nested_frame_color
 
 
 class ReminderPopup:
@@ -62,10 +63,10 @@ class ReminderPopup:
         shell.pack(fill="both", expand=True)
         shell.pack_propagate(False)
 
-        header = ctk.CTkFrame(shell, fg_color="transparent")
+        header = ctk.CTkFrame(shell, fg_color=nested_frame_color(COLORS["card"]))
         header.pack(fill="x", padx=20, pady=(18, 0))
 
-        title_block = ctk.CTkFrame(header, fg_color="transparent")
+        title_block = ctk.CTkFrame(header, fg_color=nested_frame_color(COLORS["card"]))
         title_block.pack(side="left")
 
         self._logo_image = create_logo_image(width=170)
@@ -120,14 +121,14 @@ class ReminderPopup:
             text=f"Shop {BRAND_NAME} tumblers →",
             height=28,
             corner_radius=8,
-            fg_color="transparent",
-            hover_color=COLORS["button_secondary"],
+            fg_color=COLORS["button_secondary"],
+            hover_color=COLORS["button_secondary_hover"],
             text_color=COLORS["accent"],
             font=ctk.CTkFont(size=11),
             command=lambda: webbrowser.open(WEBSITE),
         ).pack(pady=(0, 6))
 
-        self.actions = ctk.CTkFrame(shell, fg_color="transparent")
+        self.actions = ctk.CTkFrame(shell, fg_color=nested_frame_color(COLORS["card"]))
         self.actions.pack(fill="x", padx=20, pady=(0, 20))
 
         ctk.CTkButton(
@@ -141,7 +142,7 @@ class ReminderPopup:
             command=self._handle_drank,
         ).pack(fill="x", pady=(0, 8))
 
-        row = ctk.CTkFrame(self.actions, fg_color="transparent")
+        row = ctk.CTkFrame(self.actions, fg_color=nested_frame_color(COLORS["card"]))
         row.pack(fill="x")
 
         ctk.CTkButton(

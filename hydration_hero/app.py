@@ -13,10 +13,12 @@ from hydration_hero.main_window import MainWindow
 from hydration_hero.paths import ensure_user_hero_root
 from hydration_hero.reminder import ReminderPopup
 from hydration_hero.storage import SettingsStore
+from hydration_hero.ui import init_customtkinter
 
 
 class HydrationHeroApp:
     def __init__(self) -> None:
+        init_customtkinter()
         ensure_user_hero_root()
         self.store = SettingsStore(on_change=self._on_settings_changed)
         self.animations = AnimationLibrary()

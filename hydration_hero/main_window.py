@@ -20,6 +20,7 @@ from hydration_hero.brand import (
 from hydration_hero.hero import HeroStatus
 from hydration_hero.paths import HERO_FOLDER_NAME, get_user_hero_root
 from hydration_hero.storage import SettingsStore
+from hydration_hero.ui import fix_scrollable_frame, nested_frame_color
 
 
 class MainWindow(ctk.CTk):
@@ -43,19 +44,18 @@ class MainWindow(ctk.CTk):
         self.minsize(400, 560)
         self.configure(fg_color=self.COLORS["bg"])
 
-        ctk.set_appearance_mode("light")
-        ctk.set_default_color_theme("blue")
-
         self._build_ui()
         self.refresh()
         self.protocol("WM_DELETE_WINDOW", self._handle_close)
+        self.update_idletasks()
 
     def _build_ui(self) -> None:
         self.scroll = ctk.CTkScrollableFrame(self, fg_color=self.COLORS["bg"])
         self.scroll.pack(fill="both", expand=True, padx=16, pady=16)
+        fix_scrollable_frame(self.scroll, self.COLORS["bg"])
         container = self.scroll
 
-        brand_row = ctk.CTkFrame(container, fg_color="transparent")
+        brand_row = ctk.CTkFrame(container, fg_color=nested_frame_color(self.COLORS["bg"]))
         brand_row.pack(fill="x", pady=(0, 16))
 
         self._logo_image = create_logo_image(width=210)
@@ -95,7 +95,7 @@ class MainWindow(ctk.CTk):
         )
         self.progress_card.pack(fill="x", pady=(0, 16))
 
-        inner = ctk.CTkFrame(self.progress_card, fg_color="transparent")
+        inner = ctk.CTkFrame(self.progress_card, fg_color=nested_frame_color(self.COLORS["card"]))
         inner.pack(fill="x", padx=20, pady=20)
 
         self.amount_label = ctk.CTkLabel(
@@ -141,7 +141,7 @@ class MainWindow(ctk.CTk):
         )
         hero_card.pack(fill="x", pady=(0, 16))
 
-        hero_inner = ctk.CTkFrame(hero_card, fg_color="transparent")
+        hero_inner = ctk.CTkFrame(hero_card, fg_color=nested_frame_color(self.COLORS["card"]))
         hero_inner.pack(fill="x", padx=20, pady=20)
 
         ctk.CTkLabel(
@@ -165,8 +165,8 @@ class MainWindow(ctk.CTk):
             text="Open setup guide (step-by-step)",
             height=34,
             corner_radius=10,
-            fg_color="transparent",
-            hover_color=self.COLORS["button_secondary"],
+            fg_color=self.COLORS["button_secondary"],
+            hover_color=self.COLORS["button_secondary_hover"],
             text_color=self.COLORS["accent"],
             border_width=1,
             border_color=self.COLORS["card_border"],
@@ -183,7 +183,7 @@ class MainWindow(ctk.CTk):
         )
         self.hero_folder_label.pack(anchor="w", pady=(0, 10))
 
-        hero_actions = ctk.CTkFrame(hero_inner, fg_color="transparent")
+        hero_actions = ctk.CTkFrame(hero_inner, fg_color=nested_frame_color(self.COLORS["card"]))
         hero_actions.pack(fill="x")
 
         ctk.CTkButton(
@@ -226,7 +226,7 @@ class MainWindow(ctk.CTk):
             text_color=self.COLORS["text"],
         ).pack(anchor="w", pady=(0, 8))
 
-        quick_row = ctk.CTkFrame(container, fg_color="transparent")
+        quick_row = ctk.CTkFrame(container, fg_color=nested_frame_color(self.COLORS["bg"]))
         quick_row.pack(fill="x", pady=(0, 12))
         quick_row.grid_columnconfigure((0, 1, 2), weight=1)
 
@@ -242,7 +242,7 @@ class MainWindow(ctk.CTk):
                 command=lambda ml=amount: self._log_water(ml),
             ).grid(row=0, column=col, sticky="ew", padx=(0 if col == 0 else 6, 0))
 
-        custom_row = ctk.CTkFrame(container, fg_color="transparent")
+        custom_row = ctk.CTkFrame(container, fg_color=nested_frame_color(self.COLORS["bg"]))
         custom_row.pack(fill="x", pady=(0, 20))
 
         self.custom_entry = ctk.CTkEntry(
@@ -250,6 +250,9 @@ class MainWindow(ctk.CTk):
             placeholder_text="Custom amount (ml)",
             height=42,
             corner_radius=12,
+            fg_color=self.COLORS["card"],
+            border_color=self.COLORS["card_border"],
+            text_color=self.COLORS["text"],
         )
         self.custom_entry.pack(side="left", fill="x", expand=True, padx=(0, 8))
 
@@ -273,7 +276,7 @@ class MainWindow(ctk.CTk):
         )
         settings_card.pack(fill="x", pady=(0, 16))
 
-        settings_inner = ctk.CTkFrame(settings_card, fg_color="transparent")
+        settings_inner = ctk.CTkFrame(settings_card, fg_color=nested_frame_color(self.COLORS["card"]))
         settings_inner.pack(fill="x", padx=20, pady=20)
 
         ctk.CTkLabel(
@@ -293,7 +296,7 @@ class MainWindow(ctk.CTk):
         self._add_setting_row(settings_inner, "Snooze (min)", "snooze_mins", (5, 60, 5))
         self._add_setting_row(settings_inner, "Default drink (ml)", "default_drink_ml", (100, 500, 50))
 
-        footer = ctk.CTkFrame(container, fg_color="transparent")
+        footer = ctk.CTkFrame(container, fg_color=nested_frame_color(self.COLORS["bg"]))
         footer.pack(fill="x")
 
         ctk.CTkButton(
@@ -322,8 +325,8 @@ class MainWindow(ctk.CTk):
             text="Shop tumblers at strawvarie.in →",
             height=36,
             corner_radius=12,
-            fg_color="transparent",
-            hover_color=self.COLORS["button_secondary"],
+            fg_color=self.COLORS["button_secondary"],
+            hover_color=self.COLORS["button_secondary_hover"],
             text_color=self.COLORS["accent"],
             command=lambda: webbrowser.open(WEBSITE),
         ).pack(fill="x", pady=(0, 4))
@@ -384,7 +387,7 @@ class MainWindow(ctk.CTk):
         bounds: Tuple[Union[int, float], Union[int, float], Union[int, float]],
     ) -> None:
         minimum, maximum, step = bounds
-        row = ctk.CTkFrame(parent, fg_color="transparent")
+        row = ctk.CTkFrame(parent, fg_color=nested_frame_color(self.COLORS["card"]))
         row.pack(fill="x", pady=6)
 
         ctk.CTkLabel(
@@ -412,7 +415,7 @@ class MainWindow(ctk.CTk):
             value_label.configure(text=self._format_setting_value(updated))
             self.refresh()
 
-        btn_frame = ctk.CTkFrame(row, fg_color="transparent")
+        btn_frame = ctk.CTkFrame(row, fg_color=nested_frame_color(self.COLORS["card"]))
         btn_frame.pack(side="right", padx=(8, 0))
 
         ctk.CTkButton(
