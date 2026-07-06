@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import base64
+import struct
 import sys
 import threading
 from typing import Optional
@@ -61,18 +61,41 @@ class _OverlayView(NSView):
         print(f"CLICK {int(loc.x)} {int(height - loc.y)}", flush=True)
 
 
-def _stdin_loop(view: _OverlayView) -> None:
+def _read_exact(stream, size: int) -> bytes:
+    chunks: list[bytes] = []
+    remaining = size
+    while remaining > 0:
+        chunk = stream.read(remaining)
+        if not chunk:
+            break
+        chunks.append(chunk)
+        remaining -= len(chunk)
+    return b"".join(chunks)
+
+
+def _stdin_loop() -> None:
     global _running, _pending_frame
-    for raw_line in sys.stdin:
-        line = raw_line.strip()
-        if not line:
-            continue
-        if line == "QUIT":
+    stream = sys.stdin.buffer
+    while _running:
+        cmd = _read_exact(stream, 1)
+        if not cmd:
             _running = False
             return
-        if line.startswith("FRAME "):
+        if cmd == b"Q":
+            _running = False
+            return
+        if cmd == b"F":
+            header = _read_exact(stream, 4)
+            if len(header) < 4:
+                _running = False
+                return
+            length = struct.unpack(">I", header)[0]
+            payload = _read_exact(stream, length)
+            if len(payload) < length:
+                _running = False
+                return
             with _frame_lock:
-                _pending_frame = base64.b64decode(line[6:])
+                _pending_frame = payload
 
 
 def _apply_pending_frame(view: _OverlayView) -> None:
@@ -123,7 +146,7 @@ def run_worker(argv: list[str]) -> int:
     panel.setContentView_(view)
     panel.orderFrontRegardless()
 
-    threading.Thread(target=_stdin_loop, args=(view,), daemon=True).start()
+    threading.Thread(target=_stdin_loop, daemon=True).start()
     print("READY", flush=True)
 
     global _running

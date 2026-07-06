@@ -78,7 +78,30 @@ class ReminderPopup:
 
     @property
     def is_open(self) -> bool:
-        return self._overlay is not None or (self.window is not None and not self._closed)
+        if self._overlay is not None:
+            if hasattr(self._overlay, "is_alive") and not self._overlay.is_alive():
+                self._teardown_overlay()
+                return False
+            return True
+        return self.window is not None and not self._closed
+
+    def _teardown_overlay(self) -> None:
+        if self._overlay is not None:
+            try:
+                self._overlay.close()
+            except Exception:
+                pass
+            self._overlay = None
+        self._composer = None
+        self._stop_overlay_animation()
+        self._closing = False
+        self._closed = False
+
+    def _handle_overlay_worker_exit(self, reason: str) -> None:
+        print(f"macOS overlay stopped: {reason}")
+        self._teardown_overlay()
+        if not self._closing:
+            self._show_card()
 
     def show(self) -> None:
         if self.is_open:
@@ -118,11 +141,17 @@ class ReminderPopup:
                 y,
                 on_click=self._handle_overlay_click,
                 dispatch_to_main=self._dispatch_to_main,
+                on_worker_exit=self._handle_overlay_worker_exit,
             )
         except Exception as exc:
             print(f"macOS overlay unavailable, using card fallback: {exc}")
-            self._overlay = None
-            self._composer = None
+            self._teardown_overlay()
+            self._show_card()
+            return
+
+        if not self._overlay.is_alive():
+            print("macOS overlay worker exited during startup, using card fallback")
+            self._teardown_overlay()
             self._show_card()
             return
 

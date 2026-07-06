@@ -161,12 +161,20 @@ class HydrationHeroApp:
             return
         if not self.animations.ready:
             if self.animations._load_error:
+                self.main_window._flash_status(
+                    f"Hero failed to load: {self.animations._load_error}",
+                )
                 print(f"Animation load failed: {self.animations._load_error}")
+            else:
+                self.main_window._flash_status("Loading hero… try Preview again in a few seconds.")
             self._schedule_next_reminder(30)
             return
         self._hide_main_window()
         self.reminder.default_drink_ml = self.store.settings.default_drink_ml
         self.reminder.show()
+        if not self.reminder.is_open:
+            self._show_main_window()
+            self.main_window._flash_status("Reminder could not open. Check Terminal output.")
 
     def _return_to_background(self) -> None:
         self._refresh_ui()

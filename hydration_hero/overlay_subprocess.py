@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-import base64
+import io
+import struct
 import subprocess
 import sys
 import threading
@@ -32,10 +33,12 @@ class SubprocessOverlayWindow:
         on_click: Callable[[int, int], None],
         *,
         dispatch_to_main: Optional[Callable[[Callable[[], None]], None]] = None,
+        on_worker_exit: Optional[Callable[[str], None]] = None,
     ) -> None:
         self._master = master
         self._on_click = on_click
         self._dispatch_to_main = dispatch_to_main
+        self._on_worker_exit = on_worker_exit
         self._closed = False
         command = overlay_worker_command(width, height, screen_x, screen_y)
         self._proc = subprocess.Popen(
@@ -43,21 +46,28 @@ class SubprocessOverlayWindow:
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True,
-            bufsize=1,
+            bufsize=0,
         )
         if self._proc.stdin is None or self._proc.stdout is None:
             raise RuntimeError("Failed to start overlay worker")
 
-        ready = self._proc.stdout.readline().strip()
+        stdout_text = io.TextIOWrapper(self._proc.stdout, encoding="utf-8", newline="\n")
+        ready = stdout_text.readline().strip()
         if ready != "READY":
             stderr = ""
             if self._proc.stderr is not None:
-                stderr = self._proc.stderr.read()
+                stderr = self._proc.stderr.read().decode("utf-8", errors="replace")
             raise RuntimeError(f"Overlay worker failed to start: {ready or stderr or 'unknown error'}")
 
+        self._stdout = stdout_text
         self._reader = threading.Thread(target=self._read_stdout, daemon=True)
         self._reader.start()
+        if self._proc.stderr is not None:
+            self._stderr_reader = threading.Thread(target=self._read_stderr, daemon=True)
+            self._stderr_reader.start()
+
+    def is_alive(self) -> bool:
+        return not self._closed and self._proc.poll() is None
 
     def _schedule_on_main(self, callback: Callable[[], None]) -> None:
         if self._dispatch_to_main is not None:
@@ -66,9 +76,7 @@ class SubprocessOverlayWindow:
         self._master.after(0, callback)
 
     def _read_stdout(self) -> None:
-        stdout = self._proc.stdout
-        if stdout is None:
-            return
+        stdout = self._stdout
         for line in stdout:
             if self._closed:
                 return
@@ -81,17 +89,40 @@ class SubprocessOverlayWindow:
                 y = int(parts[2])
                 self._schedule_on_main(lambda x=x, y=y: self._on_click(x, y))
 
+    def _read_stderr(self) -> None:
+        stderr = self._proc.stderr
+        if stderr is None:
+            return
+        for line in io.TextIOWrapper(stderr, encoding="utf-8", errors="replace"):
+            text = line.strip()
+            if text:
+                print(f"overlay worker: {text}", flush=True)
+
+    def _notify_exit(self, reason: str) -> None:
+        if self._on_worker_exit is None:
+            return
+        self._schedule_on_main(lambda: self._on_worker_exit(reason))
+
     def show(self) -> None:
         return
 
     def set_image(self, image: Image.Image) -> None:
         if self._closed or self._proc.stdin is None:
             return
+        if not self.is_alive():
+            self._notify_exit("overlay worker exited unexpectedly")
+            return
+
         buffer = BytesIO()
-        image.convert("RGBA").save(buffer, format="PNG")
-        encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
-        self._proc.stdin.write(f"FRAME {encoded}\n")
-        self._proc.stdin.flush()
+        image.convert("RGBA").save(buffer, format="PNG", compress_level=1)
+        payload = buffer.getvalue()
+        try:
+            self._proc.stdin.write(b"F")
+            self._proc.stdin.write(struct.pack(">I", len(payload)))
+            self._proc.stdin.write(payload)
+            self._proc.stdin.flush()
+        except (BrokenPipeError, OSError) as exc:
+            self._notify_exit(f"overlay worker pipe failed: {exc}")
 
     def close(self) -> None:
         if self._closed:
@@ -99,7 +130,7 @@ class SubprocessOverlayWindow:
         self._closed = True
         if self._proc.stdin is not None:
             try:
-                self._proc.stdin.write("QUIT\n")
+                self._proc.stdin.write(b"Q")
                 self._proc.stdin.flush()
             except Exception:
                 pass
