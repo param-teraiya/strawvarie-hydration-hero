@@ -24,15 +24,24 @@ fi
 
 pick_python() {
   local candidate
+  local exe
+  local patchlevel
   for candidate in python3.12 python3.11 python3.10 python3; do
     if ! command -v "$candidate" >/dev/null 2>&1; then
+      continue
+    fi
+    exe="$(command -v "$candidate")"
+    if [[ "$exe" == /usr/bin/* ]] || [[ "$exe" == *"/CommandLineTools/"* ]]; then
       continue
     fi
     if ! "$candidate" -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 8) else 1)" 2>/dev/null; then
       continue
     fi
-    # macOS ships a stub python3 that opens the App Store — skip it.
     if "$candidate" -c "import sys" 2>&1 | grep -qi "install"; then
+      continue
+    fi
+    patchlevel="$("$candidate" -c "import tkinter as tk; r=tk.Tk(); r.withdraw(); print(r.tk.call('info','patchlevel')); r.destroy()" 2>/dev/null || echo "fail")"
+    if [[ "$patchlevel" == fail ]] || [[ "$patchlevel" == 8.5.* ]]; then
       continue
     fi
     echo "$candidate"
@@ -43,11 +52,11 @@ pick_python() {
 
 PYTHON_CMD=""
 if ! PYTHON_CMD="$(pick_python)"; then
-  echo "ERROR: No usable Python 3.8+ found."
+  echo "ERROR: No usable Python with Tk 8.6+ found."
   echo
-  echo "On a new MacBook (M1/M2/M3/M4/M5), install Python 3.12:"
-  echo "  https://www.python.org/downloads/macos/"
-  echo "  Choose the macOS 64-bit universal2 installer, then re-run ./build_mac.sh"
+  echo "On a new MacBook (M1–M5), the built-in python3 uses old Tk 8.5 and CRASHES."
+  echo "Install Python 3.12 from https://www.python.org/downloads/macos/"
+  echo "  (macOS 64-bit universal2 installer), then re-run ./build_mac.sh"
   echo
   echo "If pip later fails to compile packages, also run:"
   echo "  xcode-select --install"
@@ -77,6 +86,14 @@ if [[ ! -f "$ROOT/assets/brand/strawvarie_logo.png" && ! -f "$ROOT/hydration_her
 fi
 
 PYTHON="${ROOT}/venv/bin/python"
+if [[ -x "$PYTHON" ]]; then
+  VENV_TK="$("$PYTHON" -c "import tkinter as tk; r=tk.Tk(); r.withdraw(); print(r.tk.call('info','patchlevel')); r.destroy()" 2>/dev/null || echo "fail")"
+  if [[ "$VENV_TK" == fail ]] || [[ "$VENV_TK" == 8.5.* ]]; then
+    echo "ERROR: Existing venv uses old Tk 8.5 (created from system Python)."
+    echo "       Run: rm -rf venv && ./build_mac.sh"
+    exit 1
+  fi
+fi
 if [[ ! -x "$PYTHON" ]]; then
   echo "Creating virtual environment..."
   "$PYTHON_CMD" -m venv venv
@@ -88,12 +105,14 @@ echo "Installing dependencies..."
 "$PYTHON" -m pip install -r requirements.txt -r requirements-build.txt
 
 echo "Checking Tkinter (required for the UI)..."
-if ! "$PYTHON" -c "import tkinter; tkinter.Tk().destroy()" 2>/dev/null; then
-  echo "ERROR: Tkinter is not available in this Python."
-  echo "       Install Python from https://www.python.org/downloads/macos/ (not Homebrew-only)."
+TK_PATCH="$("$PYTHON" -c "import tkinter as tk; r=tk.Tk(); r.withdraw(); print(r.tk.call('info','patchlevel')); r.destroy()" 2>/dev/null || echo "fail")"
+if [[ "$TK_PATCH" == fail ]] || [[ "$TK_PATCH" == 8.5.* ]]; then
+  echo "ERROR: Tk 8.6+ required; found: ${TK_PATCH}"
+  echo "       Install Python 3.12 from https://www.python.org/downloads/macos/"
   echo "       Then: rm -rf venv && ./build_mac.sh"
   exit 1
 fi
+echo "  Tk patchlevel ${TK_PATCH}"
 
 echo "Ensuring default hero frames (about 1 minute on first run)..."
 if ! "$PYTHON" scripts/extract_default_frames.py; then

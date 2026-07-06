@@ -19,9 +19,13 @@ Desktop hydration reminder app for [Strawvarie](https://strawvarie.in) — anima
 
 ## Quick start (run from source)
 
+**Do not use macOS system `python3`** — it has old Tk 8.5 and crashes with `segmentation fault`.
+
+Install **Python 3.12** from [python.org/macOS](https://www.python.org/downloads/macos/) first, then:
+
 ```bash
-python3 -m venv venv
-source venv/bin/activate          # Windows: venv\Scripts\activate
+python3.12 -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
 python scripts/extract_default_frames.py   # once after clone (~1 min)
 python main.py
@@ -60,7 +64,8 @@ rm -rf venv
 
 | Problem | Fix |
 |---------|-----|
-| `No usable Python 3.8+ found` | Install Python 3.12 from [python.org](https://www.python.org/downloads/macos/) |
+| **`segmentation fault`** or **`Old system Tk 8.5`** | Install Python 3.12 from [python.org](https://www.python.org/downloads/macos/), then `rm -rf venv` and recreate venv with `python3.12` |
+| `No usable Python with Tk 8.6+ found` | Same — system Python is not supported |
 | `command not found: python3` | Same — new Macs often have no Python until you install it |
 | `Tkinter is not available` | Use python.org Python, then `rm -rf venv && ./build_mac.sh` |
 | `Missing heroes/male/default_hero.mp4` | Run `git pull` |

@@ -48,7 +48,7 @@ def main() -> None:
         warn("Not in a virtual environment", "Run: source venv/bin/activate")
 
     if sys.executable.startswith("/usr/bin/"):
-        warn("Using macOS system Python", "Install python.org Python and recreate venv")
+        fail("Using macOS system Python", "Crashes with segfault — install python.org Python 3.12")
 
     print("\n[Dependencies]")
     for name in PACKAGES:
@@ -67,9 +67,10 @@ def main() -> None:
         patch = str(root.tk.call("info", "patchlevel"))
         root.update_idletasks()
         root.destroy()
-        ok(f"Tk patchlevel {patch}")
         if patch.startswith("8.5."):
-            warn("Old Tk 8.5 detected", "UI may be blank. Use python.org Python.")
+            fail(f"Old Tk {patch}", "Install Python 3.12 from https://www.python.org/downloads/macos/")
+        else:
+            ok(f"Tk patchlevel {patch}")
     except Exception as exc:
         fail("Tkinter window test", str(exc))
 
