@@ -1,6 +1,7 @@
 """Platform and Python version compatibility helpers."""
 
 import platform
+import os
 import sys
 
 
@@ -10,11 +11,16 @@ def is_python_org_framework() -> bool:
 
 
 def supports_macos_native_overlay() -> bool:
-    """Only python.org framework Python is stable with Tk + pyobjc AppKit."""
+    """Use the native AppKit overlay only when explicitly enabled.
+
+    Tk + pyobjc/AppKit can abort the Python interpreter on macOS even with
+    python.org 3.12. Keep the card reminder as the stable default.
+    """
     return (
         platform.system() == "Darwin"
         and sys.version_info[:2] == (3, 12)
         and is_python_org_framework()
+        and os.environ.get("HYDRATION_HERO_ENABLE_NATIVE_OVERLAY") == "1"
     )
 
 

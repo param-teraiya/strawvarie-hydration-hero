@@ -154,7 +154,7 @@ class OverlayComposer:
             "YES, I DRANK",
             width=self.drank_rect[2],
             height=self.drank_rect[3],
-            fill=_hex_rgb(COLORS["brand"]),
+            fill=_hex_rgb(COLORS["accent"]),
             text_fill=(255, 255, 255),
             font_size=14,
         )
