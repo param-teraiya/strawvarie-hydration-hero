@@ -23,7 +23,7 @@ def init_customtkinter() -> None:
 
 
 def use_mac_scroll_workaround() -> bool:
-    """CTkScrollableFrame often renders blank in PyInstaller .app bundles on macOS."""
+    """Use tk Canvas scrolling instead of CTkScrollableFrame on macOS."""
     return platform.system() == "Darwin"
 
 
@@ -34,13 +34,73 @@ def nested_frame_color(surface: str) -> str:
     return "transparent"
 
 
+class MacScrollContainer:
+    """Reliable scroll area for macOS (.app bundles and python.org Tk 8.6)."""
+
+    def __init__(self, parent: ctk.CTk, bg_color: str) -> None:
+        self._parent = parent
+        self._bg_color = bg_color
+        self.outer = ctk.CTkFrame(parent, fg_color=bg_color)
+        self.outer.pack(fill="both", expand=True, padx=16, pady=16)
+
+        self.canvas = tk.Canvas(
+            self.outer,
+            bg=bg_color,
+            highlightthickness=0,
+            bd=0,
+        )
+        self.scrollbar = ctk.CTkScrollbar(
+            self.outer,
+            orientation="vertical",
+            command=self.canvas.yview,
+        )
+        self.inner = ctk.CTkFrame(self.canvas, fg_color=bg_color)
+
+        self._window_id = self.canvas.create_window((0, 0), window=self.inner, anchor="nw")
+        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+        self.canvas.pack(side="left", fill="both", expand=True)
+        self.scrollbar.pack(side="right", fill="y")
+
+        self.inner.bind("<Configure>", self._sync_scroll_region)
+        self.canvas.bind("<Configure>", self._sync_inner_width)
+        self.canvas.bind("<Enter>", self._bind_wheel)
+        self.canvas.bind("<Leave>", self._unbind_wheel)
+        parent.after(150, self._sync_scroll_region)
+
+    def _sync_scroll_region(self, _event=None) -> None:
+        self.canvas.update_idletasks()
+        bbox = self.canvas.bbox("all")
+        if bbox:
+            self.canvas.configure(scrollregion=bbox)
+
+    def _sync_inner_width(self, event: tk.Event) -> None:
+        self.canvas.itemconfigure(self._window_id, width=event.width)
+
+    def _on_wheel(self, event: tk.Event) -> None:
+        if event.delta:
+            self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        elif event.num == 4:
+            self.canvas.yview_scroll(-1, "units")
+        elif event.num == 5:
+            self.canvas.yview_scroll(1, "units")
+
+    def _bind_wheel(self, _event=None) -> None:
+        self.canvas.bind_all("<MouseWheel>", self._on_wheel, add="+")
+        self.canvas.bind_all("<Button-4>", self._on_wheel, add="+")
+        self.canvas.bind_all("<Button-5>", self._on_wheel, add="+")
+
+    def _unbind_wheel(self, _event=None) -> None:
+        self.canvas.unbind_all("<MouseWheel>")
+        self.canvas.unbind_all("<Button-4>")
+        self.canvas.unbind_all("<Button-5>")
+
+
 def create_main_container(parent: ctk.CTk, bg_color: str) -> Tuple[WidgetContainer, ctk.CTkFrame]:
-    """Return (outer shell, inner content frame). Inner frame is where widgets should pack."""
+    """Return (outer shell, inner content frame). Pack widgets into the inner frame."""
     if use_mac_scroll_workaround():
-        # CTkScrollableFrame (and CTk inside tk Canvas) often renders blank in .app bundles.
-        frame = ctk.CTkFrame(parent, fg_color=bg_color)
-        frame.pack(fill="both", expand=True, padx=16, pady=16)
-        return frame, frame
+        scroll = MacScrollContainer(parent, bg_color)
+        parent._mac_scroll = scroll  # type: ignore[attr-defined]
+        return scroll.outer, scroll.inner
 
     scroll = ctk.CTkScrollableFrame(parent, fg_color=bg_color)
     scroll.pack(fill="both", expand=True, padx=16, pady=16)
@@ -48,10 +108,25 @@ def create_main_container(parent: ctk.CTk, bg_color: str) -> Tuple[WidgetContain
     return scroll, scroll
 
 
-def mac_window_geometry() -> str:
-    if use_mac_scroll_workaround():
-        return "440x860"
-    return "440x720"
+def apply_mac_window_size(window: ctk.CTk) -> None:
+    """Use most of the screen height on Mac so more settings are visible."""
+    if not use_mac_scroll_workaround():
+        window.geometry("440x720")
+        window.minsize(400, 560)
+        return
+
+    window.update_idletasks()
+    screen_h = window.winfo_screenheight()
+    height = min(960, max(680, screen_h - 100))
+    window.geometry(f"440x{height}")
+    window.minsize(400, 560)
+
+
+def refresh_main_scroll(window: ctk.CTk) -> None:
+    """Recalculate scroll area after all widgets are packed."""
+    scroll = getattr(window, "_mac_scroll", None)
+    if scroll is not None:
+        scroll._sync_scroll_region()
 
 
 def fix_scrollable_frame(frame: ctk.CTkScrollableFrame, bg_color: str) -> None:
