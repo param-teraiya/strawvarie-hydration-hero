@@ -30,7 +30,7 @@ class HydrationHeroApp:
         self.main_window = MainWindow(
             self.store,
             on_minimize_to_tray=self._hide_main_window,
-            on_preview_reminder=self._show_reminder,
+            on_preview_reminder=lambda: self._show_reminder(preview=True),
             on_create_hero=self._create_custom_hero,
         )
         self.reminder = ReminderPopup(
@@ -156,9 +156,11 @@ class HydrationHeroApp:
         self.main_window.focus_force()
         self.main_window.refresh()
 
-    def _show_reminder(self) -> None:
+    def _show_reminder(self, *, preview: bool = False) -> None:
         if self.reminder.is_open:
             return
+        if preview:
+            self.main_window._flash_status("Opening preview…")
         if not self.animations.ready:
             if self.animations._load_error:
                 self.main_window._flash_status(
@@ -169,11 +171,12 @@ class HydrationHeroApp:
                 self.main_window._flash_status("Loading hero… try Preview again in a few seconds.")
             self._schedule_next_reminder(30)
             return
-        self._hide_main_window()
+
         self.reminder.default_drink_ml = self.store.settings.default_drink_ml
-        self.reminder.show()
-        if not self.reminder.is_open:
-            self._show_main_window()
+        self.reminder.show(force_card=preview)
+        if self.reminder.is_open:
+            self._hide_main_window()
+        else:
             self.main_window._flash_status("Reminder could not open. Check Terminal output.")
 
     def _return_to_background(self) -> None:

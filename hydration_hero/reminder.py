@@ -103,8 +103,12 @@ class ReminderPopup:
         if not self._closing:
             self._show_card()
 
-    def show(self) -> None:
+    def show(self, *, force_card: bool = False) -> None:
         if self.is_open:
+            return
+
+        if force_card:
+            self._show_card()
             return
 
         if platform.system() == "Darwin":
@@ -250,17 +254,29 @@ class ReminderPopup:
             self._anim_after = None
 
     def _show_card(self) -> None:
+        self._teardown_overlay()
         self._closed = False
         screen_w = self.master.winfo_screenwidth()
         screen_h = self.master.winfo_screenheight()
         x = screen_w - POPUP_W - 28
         y = screen_h - POPUP_H - 72
 
+        parent_hidden = False
+        try:
+            parent_hidden = self.master.state() == "withdrawn"
+            if parent_hidden:
+                self.master.deiconify()
+                self.master.update_idletasks()
+        except Exception:
+            pass
+
         self.window = ctk.CTkToplevel(self.master)
         self.window.overrideredirect(True)
         self.window.geometry(f"{POPUP_W}x{POPUP_H}+{x}+{y}")
         self.window.configure(fg_color=COLORS["reminder_bg"])
         self.window.attributes("-topmost", True)
+        self.window.lift()
+        self.window.focus_force()
 
         shell = ctk.CTkFrame(
             self.window,
@@ -345,6 +361,9 @@ class ReminderPopup:
             height=34,
             command=self._handle_dismiss,
         ).pack(fill="x")
+
+        if parent_hidden:
+            self.master.withdraw()
 
     def _loop_stand(self) -> None:
         if self.player and not self._closed:
