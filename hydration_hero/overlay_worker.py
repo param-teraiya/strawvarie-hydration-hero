@@ -26,6 +26,7 @@ from Foundation import NSMakeRect, NSZeroRect
 _running = True
 _pending_frame: Optional[bytes] = None
 _frame_lock = threading.Lock()
+_panel = None
 
 
 class _OverlayView(NSView):
@@ -99,7 +100,7 @@ def _stdin_loop() -> None:
 
 
 def _apply_pending_frame(view: _OverlayView) -> None:
-    global _pending_frame
+    global _pending_frame, _panel
     with _frame_lock:
         payload = _pending_frame
         _pending_frame = None
@@ -108,6 +109,8 @@ def _apply_pending_frame(view: _OverlayView) -> None:
     image = NSImage.alloc().initWithData_(payload)
     if image is not None:
         view.setImage_(image)
+        if _panel is not None:
+            _panel.orderFrontRegardless()
 
 
 def run_worker(argv: list[str]) -> int:
@@ -134,6 +137,7 @@ def run_worker(argv: list[str]) -> int:
         NSBackingStoreBuffered,
         False,
     )
+    _panel = panel
     panel.setLevel_(NSFloatingWindowLevel)
     panel.setOpaque_(False)
     panel.setBackgroundColor_(NSColor.clearColor())
@@ -149,7 +153,7 @@ def run_worker(argv: list[str]) -> int:
     threading.Thread(target=_stdin_loop, daemon=True).start()
     print("READY", flush=True)
 
-    global _running
+    global _running, _panel
     while _running:
         with objc.autorelease_pool():
             event = app.nextEventMatchingMask_untilDate_inMode_dequeue_(  # noqa: N806

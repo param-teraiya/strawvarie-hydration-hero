@@ -1,3 +1,4 @@
+import os
 import platform
 import tkinter as tk
 from typing import Callable, Optional, Tuple
@@ -107,7 +108,7 @@ class ReminderPopup:
         if self.is_open:
             return
 
-        if force_card:
+        if force_card or os.environ.get("HYDRATION_HERO_CARD_REMINDER") == "1":
             self._show_card()
             return
 
@@ -169,6 +170,7 @@ class ReminderPopup:
         if frames and frames[0] is not None:
             image = self._composer.render(frames[0], WALK_IN_START_X, show_controls=True)
             self._overlay.set_image(image)
+            self.master.update_idletasks()
 
         self._play_overlay_animation(
             "walk_in",

@@ -173,7 +173,7 @@ class HydrationHeroApp:
             return
 
         self.reminder.default_drink_ml = self.store.settings.default_drink_ml
-        self.reminder.show(force_card=preview)
+        self.reminder.show()
         if self.reminder.is_open:
             self._hide_main_window()
         else:
