@@ -37,34 +37,56 @@ function alreadyTransparent(img: ImageData): boolean {
   return clear >= 3;
 }
 
-/** Zero-out pixels close to the background colour (sampled from the corners). */
+/** Remove the background by flood-filling inward from the edges. Only pixels
+ *  that are the background colour AND connected to the border are cleared — so
+ *  an interior face that happens to match the background (e.g. skin on a beige
+ *  backdrop) survives, unlike a naive "remove every matching pixel" pass. */
 function removeBackground(img: ImageData): void {
-  const { data, width, height } = img;
+  const { data, width: w, height: h } = img;
   const corners = [
     [0, 0],
-    [width - 1, 0],
-    [0, height - 1],
-    [width - 1, height - 1],
-  ].map(([x, y]) => {
-    const i = (y * width + x) * 4;
-    return [data[i], data[i + 1], data[i + 2]];
-  });
+    [w - 1, 0],
+    [0, h - 1],
+    [w - 1, h - 1],
+  ];
   const bg = [0, 1, 2].map((k) =>
-    Math.round(corners.reduce((sum, c) => sum + c[k], 0) / corners.length),
+    Math.round(corners.reduce((sum, [x, y]) => sum + data[(y * w + x) * 4 + k], 0) / 4),
   );
 
-  const HARD = 66; // fully transparent below this colour distance
-  const SOFT = 34; // feathered edge above it, to avoid a hard halo
-  for (let i = 0; i < data.length; i += 4) {
-    const dr = data[i] - bg[0];
-    const dg = data[i + 1] - bg[1];
-    const db = data[i + 2] - bg[2];
-    const dist = Math.sqrt(dr * dr + dg * dg + db * db);
-    if (dist < HARD) {
-      data[i + 3] = 0;
-    } else if (dist < HARD + SOFT) {
-      data[i + 3] = Math.round(data[i + 3] * ((dist - HARD) / SOFT));
+  const TOL = 110 * 110; // squared colour distance that still counts as background
+  const near = (idx: number) => {
+    const o = idx * 4;
+    const dr = data[o] - bg[0];
+    const dg = data[o + 1] - bg[1];
+    const db = data[o + 2] - bg[2];
+    return dr * dr + dg * dg + db * db < TOL;
+  };
+
+  const visited = new Uint8Array(w * h);
+  const stack: number[] = [];
+  const seed = (idx: number) => {
+    if (!visited[idx] && near(idx)) {
+      visited[idx] = 1;
+      stack.push(idx);
     }
+  };
+  for (let x = 0; x < w; x++) {
+    seed(x);
+    seed((h - 1) * w + x);
+  }
+  for (let y = 0; y < h; y++) {
+    seed(y * w);
+    seed(y * w + w - 1);
+  }
+  while (stack.length) {
+    const idx = stack.pop()!;
+    data[idx * 4 + 3] = 0;
+    const x = idx % w;
+    const y = (idx - x) / w;
+    if (x > 0) seed(idx - 1);
+    if (x < w - 1) seed(idx + 1);
+    if (y > 0) seed(idx - w);
+    if (y < h - 1) seed(idx + w);
   }
 }
 
