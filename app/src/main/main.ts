@@ -28,6 +28,7 @@ const INTERVAL_PRESETS = [30, 45, 60, 90];
 const GEMINI_PROMPT =
   "Turn the person in this photo into a cute full-body pixel-art character, " +
   "16-bit retro game style, standing and facing forward, full body from head to feet, " +
+  "holding a stainless-steel water tumbler in one hand, " +
   "on a solid flat bright green background (hex #00FF00), no shadows, no text.";
 
 const DROP_SVG = `<svg class="drop" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C12 2 4 11 4 16a8 8 0 0 0 16 0C20 11 12 2 12 2Z" fill="var(--accent)"/></svg>`;

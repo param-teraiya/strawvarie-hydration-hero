@@ -179,9 +179,10 @@ export class Sprite {
     const dw = img.width * scale;
     const dh = img.height * scale;
 
+    // The character holds its own tumbler (per the import prompt), so "drink"
+    // is a gentle lean-and-lift to sip from it — no separate cup is drawn.
     let bob = 0;
     let rot = 0;
-    let cup = -1;
     if (!this.reduceMotion) {
       if (state === "idle") {
         bob = Math.sin(el * 3) * 3;
@@ -190,20 +191,18 @@ export class Sprite {
         rot = Math.sin(el * 10) * 0.05;
       } else if (state === "drink") {
         const p = ease(Math.min(1, el / 0.5));
-        rot = -0.22 * p;
-        bob = -3 * p;
-        cup = p;
+        rot = -0.2 * p;
+        bob = -4 * p;
       }
     } else if (state === "drink") {
-      rot = -0.22;
-      cup = 1;
+      rot = -0.2;
+      bob = -4;
     }
 
     ctx.save();
     ctx.translate(cw / 2, ch - 2 + bob);
     ctx.rotate(rot);
     ctx.drawImage(img, -dw / 2, -dh, dw, dh);
-    if (cup >= 0) drawCup(ctx, dw * 0.18, -dh * 0.58, dw * 0.26, cup);
     ctx.restore();
   }
 
@@ -214,30 +213,4 @@ export class Sprite {
 
 function ease(p: number): number {
   return p * p * (3 - 2 * p);
-}
-
-function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
-}
-
-/** A little tumbler held up during the "drink" pose. */
-function drawCup(ctx: CanvasRenderingContext2D, cx: number, cy: number, w: number, alpha: number) {
-  const h = w * 1.25;
-  ctx.save();
-  ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
-  ctx.fillStyle = "#b9c2c7";
-  ctx.strokeStyle = "#8a969c";
-  ctx.lineWidth = 2;
-  roundRect(ctx, cx - w / 2, cy - h / 2, w, h, 4);
-  ctx.fill();
-  ctx.stroke();
-  ctx.fillStyle = "#8a969c";
-  ctx.fillRect(cx - w / 2, cy - h / 2, w, h * 0.16);
-  ctx.restore();
 }
