@@ -21,6 +21,24 @@ function fileToImage(file: File): Promise<HTMLImageElement> {
   });
 }
 
+/** True if the image already has its own transparent background (e.g. a PNG
+ *  exported with alpha) — in which case we must NOT chroma-key it, or we'd
+ *  erase the character's dark pixels. */
+function alreadyTransparent(img: ImageData): boolean {
+  const { data, width, height } = img;
+  const corners = [
+    [0, 0],
+    [width - 1, 0],
+    [0, height - 1],
+    [width - 1, height - 1],
+  ];
+  let clear = 0;
+  for (const [x, y] of corners) {
+    if (data[(y * width + x) * 4 + 3] < 32) clear += 1;
+  }
+  return clear >= 3;
+}
+
 /** Zero-out pixels close to the background colour (sampled from the corners). */
 function removeBackground(img: ImageData): void {
   const { data, width, height } = img;
@@ -93,7 +111,11 @@ export async function processCharacterImage(file: File): Promise<string> {
   wctx.drawImage(img, 0, 0, w, h);
 
   const data = wctx.getImageData(0, 0, w, h);
-  removeBackground(data);
+  // Only chroma-key a solid background. If the image is already transparent,
+  // keep its alpha as-is (removing it would eat dark parts of the character).
+  if (!alreadyTransparent(data)) {
+    removeBackground(data);
+  }
   wctx.putImageData(data, 0, 0);
 
   const b = opaqueBounds(data);

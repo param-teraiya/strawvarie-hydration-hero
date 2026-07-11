@@ -301,7 +301,7 @@ function renderCreate() {
     <div class="import-row">
       <button class="btn-secondary" id="c-gemini">Open Gemini ↗</button>
       <label class="btn-primary file-btn">Choose image…
-        <input type="file" id="c-file" accept="image/png,image/jpeg,image/webp" hidden/>
+        <input type="file" id="c-file" accept="image/*" hidden/>
       </label>
     </div>
     <p class="c-status" id="c-status"></p>
