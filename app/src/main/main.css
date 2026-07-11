@@ -1,0 +1,274 @@
+#app {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+}
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 22px 24px 16px;
+}
+.footer {
+  border-top: 1px solid var(--border);
+  padding: 14px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--card-2);
+}
+
+/* Brand header ----------------------------------------------------------- */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 4px;
+}
+.brand .drop {
+  width: 26px;
+  height: 26px;
+  flex: none;
+}
+.brand h1 {
+  font-size: 17px;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+.brand .sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 1px 0 0;
+}
+
+/* Sections --------------------------------------------------------------- */
+.section {
+  margin-top: 22px;
+}
+.section-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 10px 2px;
+}
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 13px 16px;
+}
+.row + .row {
+  border-top: 1px solid var(--border);
+}
+.row .label {
+  font-size: 14px;
+  font-weight: 600;
+}
+.row .desc {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.row .control {
+  flex: none;
+}
+
+select {
+  font-family: var(--font);
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--card-2);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 7px 10px;
+}
+
+/* Preset button group ---------------------------------------------------- */
+.presets {
+  display: flex;
+  gap: 6px;
+}
+.presets button {
+  padding: 7px 12px;
+  background: var(--card-2);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  font-weight: 600;
+}
+.presets button.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+/* Toggle switch ---------------------------------------------------------- */
+.switch {
+  position: relative;
+  width: 44px;
+  height: 26px;
+  flex: none;
+}
+.switch input {
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  cursor: pointer;
+}
+.switch .track {
+  position: absolute;
+  inset: 0;
+  background: var(--border);
+  border-radius: 999px;
+  transition: background 0.15s ease;
+  pointer-events: none;
+}
+.switch .thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.15s ease;
+  pointer-events: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+.switch input:checked ~ .track {
+  background: var(--accent);
+}
+.switch input:checked ~ .thumb {
+  transform: translateX(18px);
+}
+.switch input:focus-visible ~ .track {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Character picker ------------------------------------------------------- */
+.char-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.char-card {
+  background: var(--card);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 6px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.char-card.selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.char-card canvas.sprite {
+  width: 64px;
+  height: 77px;
+}
+.char-name {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Onboarding ------------------------------------------------------------- */
+.onb {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 28px 26px;
+  text-align: center;
+  background: var(--paper);
+}
+.onb .stage {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+}
+.onb canvas.sprite {
+  width: 120px;
+  height: 144px;
+}
+.onb h2 {
+  font-size: 22px;
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+.onb p {
+  font-size: 14px;
+  color: var(--muted);
+  margin: 0;
+  max-width: 34ch;
+  line-height: 1.5;
+}
+.onb .nav {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+.dots {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  margin-top: 4px;
+}
+.dots span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--border);
+}
+.dots span.on {
+  background: var(--accent);
+}
+.field-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* About ------------------------------------------------------------------ */
+.about {
+  text-align: center;
+  padding: 8px 4px;
+}
+.about .privacy {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+  max-width: 40ch;
+  margin: 10px auto 18px;
+}
+.about .links {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+}
+.about .version {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 14px;
+}
+.full {
+  width: 100%;
+}

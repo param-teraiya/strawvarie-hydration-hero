@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "id": "berry",
+  "name": "Berry",
+  "blurb": "The Strawvarie mascot, always thirsty for more.",
+  "frameWidth": 160,
+  "frameHeight": 192,
+  "anchorX": 80,
+  "anchorY": 176,
+  "states": {
+    "idle": {
+      "row": 0,
+      "frames": 2,
+      "fps": 2,
+      "loop": true
+    },
+    "walk": {
+      "row": 1,
+      "frames": 2,
+      "fps": 8,
+      "loop": true
+    },
+    "drink": {
+      "row": 2,
+      "frames": 2,
+      "fps": 3,
+      "loop": false
+    }
+  },
+  "poster": {
+    "state": "idle",
+    "index": 0
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Hydration Hero",
+  "version": "1.0.0",
+  "identifier": "in.strawvarie.hydrationhero",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "macOSPrivateApi": true,
+    "withGlobalTauri": false,
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' ipc: http://ipc.localhost"
+    },
+    "windows": [
+      {
+        "label": "main",
+        "title": "Hydration Hero",
+        "url": "index.html",
+        "width": 460,
+        "height": 620,
+        "minWidth": 420,
+        "minHeight": 560,
+        "resizable": false,
+        "center": true,
+        "visible": false,
+        "fullscreen": false
+      },
+      {
+        "label": "overlay",
+        "url": "overlay.html",
+        "width": 480,
+        "height": 340,
+        "transparent": true,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "resizable": false,
+        "shadow": false,
+        "focus": false,
+        "visible": false
+      }
+    ]
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "category": "Lifestyle",
+    "shortDescription": "A friendly desktop hydration companion from Strawvarie.",
+    "longDescription": "Hydration Hero is a tiny desktop companion from Strawvarie. A pixel-art buddy lives in your menu bar and gently reminds you to sip from your tumbler through the day. Fully offline, no accounts, no tracking."
+  }
+}
