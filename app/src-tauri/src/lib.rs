@@ -151,13 +151,35 @@ fn set_pause(app: AppHandle, kind: String) {
     apply_pause(&app, &kind);
 }
 
+/// Bring the main window to the front. Used on re-launch / re-activation so the
+/// app never feels "dead" when a user opens it while it's already in the tray.
+/// On macOS we briefly become a regular (dock-visible) app so the window
+/// actually comes to the foreground; closing the window drops us back to
+/// menu-bar-only (see the window close handler).
+fn reveal_main(app: &AppHandle) {
+    #[cfg(target_os = "macos")]
+    let _ = app.set_activation_policy(tauri::ActivationPolicy::Regular);
+    if let Some(win) = app.get_webview_window("main") {
+        let _ = win.show();
+        let _ = win.unminimize();
+        let _ = win.set_focus();
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
+        // Must be registered first: focuses the running app instead of
+        // launching a second copy when the user opens it again.
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            reveal_main(app);
+        }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,
-            None,
+            // Passed only when the OS launches us at login, so we can tell a
+            // login-launch (stay quiet) from a manual open (show the window).
+            Some(vec!["--autostart"]),
         ))
         .invoke_handler(tauri::generate_handler![
             get_settings,
@@ -168,19 +190,20 @@ pub fn run() {
             set_pause,
         ])
         .on_window_event(|window, event| {
-            // Closing the main window hides it (the app lives in the tray).
+            // Closing the main window hides it (the app lives in the tray) and
+            // drops the dock icon so we're menu-bar-only again.
             if window.label() == "main" {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                     api.prevent_close();
                     let _ = window.hide();
+                    #[cfg(target_os = "macos")]
+                    let _ = window
+                        .app_handle()
+                        .set_activation_policy(tauri::ActivationPolicy::Accessory);
                 }
             }
         })
         .setup(|app| {
-            // Menu-bar app: no dock icon on macOS.
-            #[cfg(target_os = "macos")]
-            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
-
             let handle = app.handle();
             let loaded = settings::load(handle);
             apply_autostart(handle, loaded.launch_at_login);
@@ -198,12 +221,15 @@ pub fn run() {
 
             tray::build(handle)?;
 
-            // First run: show onboarding. Otherwise stay quietly in the tray.
-            if !onboarding_done {
-                if let Some(win) = app.get_webview_window("main") {
-                    let _ = win.show();
-                    let _ = win.set_focus();
-                }
+            // Show the window on first run (onboarding) and on any manual
+            // launch. Only stay silently in the tray (menu-bar-only) when the OS
+            // launched us at login (marked by the --autostart flag).
+            let launched_at_login = std::env::args().any(|a| a == "--autostart");
+            if !onboarding_done || !launched_at_login {
+                reveal_main(handle);
+            } else {
+                #[cfg(target_os = "macos")]
+                let _ = handle.set_activation_policy(tauri::ActivationPolicy::Accessory);
             }
 
             // Background thread: the reminder clock.
@@ -215,6 +241,14 @@ pub fn run() {
 
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running Hydration Hero");
+        .build(tauri::generate_context!())
+        .expect("error while building Hydration Hero");
+
+    app.run(|app_handle, _event| {
+        // macOS: clicking the app again (Finder / dock) reopens the window.
+        #[cfg(target_os = "macos")]
+        if let tauri::RunEvent::Reopen { .. } = _event {
+            reveal_main(app_handle);
+        }
+    });
 }
