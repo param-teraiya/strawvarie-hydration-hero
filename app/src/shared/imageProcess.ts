@@ -5,20 +5,18 @@
 // the corners, crop to the character, and rescale to a standard height. Returns
 // a PNG data URL ready to store and animate.
 
-function fileToImage(file: File): Promise<HTMLImageElement> {
+function urlToImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
     const img = new Image();
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      resolve(img);
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error("That file could not be read as an image."));
-    };
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("That file could not be read as an image."));
     img.src = url;
   });
+}
+
+function fileToImage(file: File): Promise<HTMLImageElement> {
+  const url = URL.createObjectURL(file);
+  return urlToImage(url).finally(() => URL.revokeObjectURL(url));
 }
 
 /** True if the image already has its own transparent background (e.g. a PNG
@@ -96,8 +94,14 @@ function opaqueBounds(img: ImageData) {
 const TARGET_HEIGHT = 184;
 
 export async function processCharacterImage(file: File): Promise<string> {
-  const img = await fileToImage(file);
+  return processImage(await fileToImage(file));
+}
 
+export async function processCharacterImageFromDataUrl(dataUrl: string): Promise<string> {
+  return processImage(await urlToImage(dataUrl));
+}
+
+async function processImage(img: HTMLImageElement): Promise<string> {
   // Work at a modest resolution for speed.
   const maxSide = 512;
   const scale = Math.min(1, maxSide / Math.max(img.width, img.height));

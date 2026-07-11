@@ -37,6 +37,8 @@ export const reminderAction = (action: "drank" | "snooze" | "dismiss") =>
 export const remindNow = () => invoke("remind_now");
 export const setPause = (kind: "1h" | "3h" | "until_tomorrow" | "off") =>
   invoke("set_pause", { kind });
+export const readImageAsDataUrl = (path: string) =>
+  invoke<string>("read_image_as_data_url", { path });
 export const getCustomCharacter = () => invoke<CustomCharacter | null>("get_custom_character");
 export const saveCustomCharacter = (name: string, image: string) =>
   invoke("save_custom_character", { name, image });

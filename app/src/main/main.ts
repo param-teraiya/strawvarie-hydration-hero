@@ -3,16 +3,18 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { getVersion } from "@tauri-apps/api/app";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { open } from "@tauri-apps/plugin-dialog";
 import "../shared/theme.css";
 import "./main.css";
 import { Sprite } from "../shared/sprites";
 import { applyTheme } from "../shared/theme";
 import { CHARACTERS, characterDir } from "../shared/characters";
-import { processCharacterImage } from "../shared/imageProcess";
+import { processCharacterImageFromDataUrl } from "../shared/imageProcess";
 import {
   getCustomCharacter,
   getSettings,
   listen,
+  readImageAsDataUrl,
   remindNow,
   saveCustomCharacter,
   saveSettings,
@@ -300,9 +302,7 @@ function renderCreate() {
     </ol>
     <div class="import-row">
       <button class="btn-secondary" id="c-gemini">Open Gemini ↗</button>
-      <label class="btn-primary file-btn">Choose image…
-        <input type="file" id="c-file" accept="image/*" hidden/>
-      </label>
+      <button class="btn-primary" id="c-choose">Choose image…</button>
     </div>
     <p class="c-status" id="c-status"></p>
     <div class="preview-wrap" id="c-preview" hidden>
@@ -321,7 +321,6 @@ function renderCreate() {
   const status = wrap.querySelector<HTMLParagraphElement>("#c-status")!;
   const previewWrap = wrap.querySelector<HTMLDivElement>("#c-preview")!;
   const nameInput = wrap.querySelector<HTMLInputElement>("#c-name")!;
-  const fileInput = wrap.querySelector<HTMLInputElement>("#c-file")!;
   const previewSprite = new Sprite(wrap.querySelector<HTMLCanvasElement>("#c-canvas")!);
   pickers.push(previewSprite);
 
@@ -338,21 +337,32 @@ function renderCreate() {
     setTimeout(() => (b.textContent = old), 1500);
   });
 
-  fileInput.addEventListener("change", async () => {
-    const file = fileInput.files?.[0];
-    if (!file) return;
+  wrap.querySelector("#c-choose")!.addEventListener("click", async () => {
+    let path: string | string[] | null = null;
+    try {
+      path = await open({
+        multiple: false,
+        directory: false,
+        filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg", "webp", "gif", "bmp"] }],
+      });
+    } catch {
+      status.textContent = "Couldn't open the file picker. Please try again.";
+      return;
+    }
+    if (!path || Array.isArray(path)) return;
+
     status.textContent = "Processing your image…";
     previewWrap.hidden = true;
     try {
-      processed = await processCharacterImage(file);
+      const dataUrl = await readImageAsDataUrl(path);
+      processed = await processCharacterImageFromDataUrl(dataUrl);
       await previewSprite.loadProcedural(processed);
       previewSprite.play("idle", { loop: true });
       status.textContent = "";
       previewWrap.hidden = false;
     } catch {
-      status.textContent = "That image didn't work. Try a PNG or JPG with a plain background.";
+      status.textContent = "That image didn't work. Try a PNG or JPG.";
     }
-    fileInput.value = "";
   });
 
   wrap.querySelector("#c-retry")!.addEventListener("click", () => {

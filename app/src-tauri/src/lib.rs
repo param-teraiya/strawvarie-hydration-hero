@@ -171,6 +171,23 @@ fn save_custom_character(
     settings::save(&app, &s)
 }
 
+/// Read a user-picked image file and return it as a data URL the webview can
+/// load. Paired with the native file dialog so file selection is reliable.
+#[tauri::command]
+fn read_image_as_data_url(path: String) -> Result<String, String> {
+    use base64::Engine;
+    let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
+    let mime = match path.rsplit('.').next().map(|s| s.to_lowercase()).as_deref() {
+        Some("jpg") | Some("jpeg") => "image/jpeg",
+        Some("webp") => "image/webp",
+        Some("gif") => "image/gif",
+        Some("bmp") => "image/bmp",
+        _ => "image/png",
+    };
+    let encoded = base64::engine::general_purpose::STANDARD.encode(bytes);
+    Ok(format!("data:{mime};base64,{encoded}"))
+}
+
 #[tauri::command]
 fn delete_custom_character(app: AppHandle, state: tauri::State<AppState>) -> Result<(), String> {
     custom::delete(&app);
@@ -205,6 +222,7 @@ pub fn run() {
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             reveal_main(app);
         }))
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,
@@ -222,6 +240,7 @@ pub fn run() {
             get_custom_character,
             save_custom_character,
             delete_custom_character,
+            read_image_as_data_url,
         ])
         .on_window_event(|window, event| {
             // Closing the main window hides it (the app lives in the tray) and
