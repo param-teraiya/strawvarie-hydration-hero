@@ -5,6 +5,7 @@
 //! the functions marked `#[tauri::command]` via `invoke(...)`. Everything else
 //! is wiring you should rarely need to open.
 
+mod custom;
 mod scheduler;
 mod settings;
 mod tray;
@@ -151,6 +152,36 @@ fn set_pause(app: AppHandle, kind: String) {
     apply_pause(&app, &kind);
 }
 
+#[tauri::command]
+fn get_custom_character(app: AppHandle) -> Option<custom::CustomCharacter> {
+    custom::load(&app)
+}
+
+#[tauri::command]
+fn save_custom_character(
+    app: AppHandle,
+    state: tauri::State<AppState>,
+    name: String,
+    image: String,
+) -> Result<(), String> {
+    custom::save(&app, &custom::CustomCharacter { name, image })?;
+    // Selecting the new buddy right away.
+    let mut s = state.settings.lock().unwrap();
+    s.character_id = "custom".into();
+    settings::save(&app, &s)
+}
+
+#[tauri::command]
+fn delete_custom_character(app: AppHandle, state: tauri::State<AppState>) -> Result<(), String> {
+    custom::delete(&app);
+    let mut s = state.settings.lock().unwrap();
+    if s.character_id == "custom" {
+        s.character_id = "berry".into();
+        return settings::save(&app, &s);
+    }
+    Ok(())
+}
+
 /// Bring the main window to the front. Used on re-launch / re-activation so the
 /// app never feels "dead" when a user opens it while it's already in the tray.
 /// On macOS we briefly become a regular (dock-visible) app so the window
@@ -188,6 +219,9 @@ pub fn run() {
             reminder_action,
             remind_now,
             set_pause,
+            get_custom_character,
+            save_custom_character,
+            delete_custom_character,
         ])
         .on_window_event(|window, event| {
             // Closing the main window hides it (the app lives in the tray) and

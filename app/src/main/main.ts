@@ -8,18 +8,39 @@ import "./main.css";
 import { Sprite } from "../shared/sprites";
 import { applyTheme } from "../shared/theme";
 import { CHARACTERS, characterDir } from "../shared/characters";
-import { getSettings, listen, remindNow, saveSettings, type Settings } from "../shared/ipc";
+import { processCharacterImage } from "../shared/imageProcess";
+import {
+  getCustomCharacter,
+  getSettings,
+  listen,
+  remindNow,
+  saveCustomCharacter,
+  saveSettings,
+  type Settings,
+} from "../shared/ipc";
 
 const SHOP_URL = "https://strawvarie.in";
 const RELEASES_URL = "https://github.com/strawvarie/hydration-hero/releases";
+const GEMINI_URL = "https://gemini.google.com/app";
 const INTERVAL_PRESETS = [30, 45, 60, 90];
+const GEMINI_PROMPT =
+  "Turn the person in this photo into a cute full-body pixel-art character, " +
+  "16-bit retro game style, standing and facing forward, full body from head to feet, " +
+  "on a solid flat bright green background (hex #00FF00), no shadows, no text.";
 
 const DROP_SVG = `<svg class="drop" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C12 2 4 11 4 16a8 8 0 0 0 16 0C20 11 12 2 12 2Z" fill="var(--accent)"/></svg>`;
 
 let settings: Settings;
-let view: "onboarding" | "settings" | "about" = "settings";
+let view: "onboarding" | "settings" | "about" | "create" = "settings";
+let createReturn: "onboarding" | "settings" = "settings";
 let step = 0;
 let pickers: Sprite[] = [];
+
+function openCreate() {
+  createReturn = view === "onboarding" ? "onboarding" : "settings";
+  view = "create";
+  render();
+}
 
 const app = document.getElementById("app")!;
 
@@ -51,27 +72,51 @@ function render() {
   app.innerHTML = "";
   if (view === "onboarding") renderOnboarding();
   else if (view === "about") renderAbout();
+  else if (view === "create") renderCreate();
   else renderSettings();
 }
 
 // --- reusable character picker ---------------------------------------------
-function buildPicker(onPick: (id: string) => void): HTMLElement {
+function selectCard(grid: HTMLElement, card: HTMLElement, id: string, onPick: (id: string) => void) {
+  grid.querySelectorAll(".char-card").forEach((n) => n.classList.remove("selected"));
+  card.classList.add("selected");
+  onPick(id);
+}
+
+function buildPicker(onPick: (id: string) => void, onCreate: () => void): HTMLElement {
   const grid = document.createElement("div");
   grid.className = "char-grid";
-  CHARACTERS.forEach((c) => {
+
+  const addSpriteCard = (id: string, name: string, load: (s: Sprite) => Promise<void>) => {
     const card = document.createElement("button");
-    card.className = "char-card" + (c.id === settings.character_id ? " selected" : "");
-    card.innerHTML = `<canvas class="sprite"></canvas><div class="char-name">${c.name}</div>`;
+    card.className = "char-card" + (id === settings.character_id ? " selected" : "");
+    card.innerHTML = `<canvas class="sprite"></canvas><div class="char-name">${escapeHtml(name)}</div>`;
     const sprite = new Sprite(card.querySelector("canvas")!);
     pickers.push(sprite);
-    sprite.load(characterDir(c.id)).then(() => sprite.play("idle", { loop: true }));
-    card.addEventListener("click", () => {
-      grid.querySelectorAll(".char-card").forEach((n) => n.classList.remove("selected"));
-      card.classList.add("selected");
-      onPick(c.id);
-    });
-    grid.appendChild(card);
+    load(sprite).then(() => sprite.play("idle", { loop: true }));
+    card.addEventListener("click", () => selectCard(grid, card, id, onPick));
+    return card;
+  };
+
+  // Built-in buddies.
+  CHARACTERS.forEach((c) => {
+    grid.appendChild(addSpriteCard(c.id, c.name, (s) => s.load(characterDir(c.id))));
   });
+
+  // "Make your own" card.
+  const add = document.createElement("button");
+  add.className = "char-card char-add";
+  add.innerHTML = `<div class="char-add-plus">＋</div><div class="char-name">Make your own</div>`;
+  add.addEventListener("click", onCreate);
+  grid.appendChild(add);
+
+  // Custom buddy (loaded async, inserted first if present).
+  getCustomCharacter().then((c) => {
+    if (!c) return;
+    const card = addSpriteCard("custom", c.name, (s) => s.loadProcedural(c.image));
+    grid.insertBefore(card, grid.firstChild);
+  });
+
   return grid;
 }
 
@@ -175,7 +220,9 @@ function renderSettings() {
   app.appendChild(wrap);
   app.appendChild(footer);
 
-  wrap.querySelector("#picker-slot")!.appendChild(buildPicker((id) => update({ character_id: id })));
+  wrap
+    .querySelector("#picker-slot")!
+    .appendChild(buildPicker((id) => update({ character_id: id }), openCreate));
 
   wrap.querySelectorAll<HTMLButtonElement>("#interval-presets button").forEach((b) => {
     b.addEventListener("click", () => {
@@ -229,6 +276,101 @@ async function renderAbout() {
   });
 }
 
+// --- make your own ---------------------------------------------------------
+function renderCreate() {
+  let processed: string | null = null;
+  const wrap = document.createElement("div");
+  wrap.className = "content create";
+  wrap.innerHTML = `
+    <div class="create-head">
+      <button class="btn-ghost" id="c-back">‹ Back</button>
+      <h2>Make your own buddy</h2>
+    </div>
+    <p class="create-intro">Turn a photo into your very own pixel buddy — about a minute.</p>
+    <ol class="steps">
+      <li>Open Google Gemini and upload a clear, full-body photo.</li>
+      <li>Paste this prompt and send it:
+        <div class="prompt-box">
+          <span id="prompt-text">${escapeHtml(GEMINI_PROMPT)}</span>
+          <button class="btn-secondary copy" id="c-copy">Copy</button>
+        </div>
+      </li>
+      <li>Download the image Gemini makes for you.</li>
+      <li>Bring it back here with “Choose image”.</li>
+    </ol>
+    <div class="import-row">
+      <button class="btn-secondary" id="c-gemini">Open Gemini ↗</button>
+      <label class="btn-primary file-btn">Choose image…
+        <input type="file" id="c-file" accept="image/png,image/jpeg,image/webp" hidden/>
+      </label>
+    </div>
+    <p class="c-status" id="c-status"></p>
+    <div class="preview-wrap" id="c-preview" hidden>
+      <canvas class="sprite" id="c-canvas"></canvas>
+      <div class="preview-form">
+        <input type="text" id="c-name" placeholder="Name your buddy" maxlength="18"/>
+        <div class="preview-actions">
+          <button class="btn-secondary" id="c-retry">Try another</button>
+          <button class="btn-primary" id="c-save">Use this buddy</button>
+        </div>
+      </div>
+    </div>
+    <p class="hint">Tip: a plain, solid-colour background works best — the app removes it for you.</p>`;
+  app.appendChild(wrap);
+
+  const status = wrap.querySelector<HTMLParagraphElement>("#c-status")!;
+  const previewWrap = wrap.querySelector<HTMLDivElement>("#c-preview")!;
+  const nameInput = wrap.querySelector<HTMLInputElement>("#c-name")!;
+  const fileInput = wrap.querySelector<HTMLInputElement>("#c-file")!;
+  const previewSprite = new Sprite(wrap.querySelector<HTMLCanvasElement>("#c-canvas")!);
+  pickers.push(previewSprite);
+
+  wrap.querySelector("#c-back")!.addEventListener("click", () => {
+    view = createReturn;
+    render();
+  });
+  wrap.querySelector("#c-gemini")!.addEventListener("click", () => openUrl(GEMINI_URL));
+  wrap.querySelector("#c-copy")!.addEventListener("click", async (e) => {
+    await copyText(GEMINI_PROMPT);
+    const b = e.currentTarget as HTMLButtonElement;
+    const old = b.textContent;
+    b.textContent = "Copied!";
+    setTimeout(() => (b.textContent = old), 1500);
+  });
+
+  fileInput.addEventListener("change", async () => {
+    const file = fileInput.files?.[0];
+    if (!file) return;
+    status.textContent = "Processing your image…";
+    previewWrap.hidden = true;
+    try {
+      processed = await processCharacterImage(file);
+      await previewSprite.loadProcedural(processed);
+      previewSprite.play("idle", { loop: true });
+      status.textContent = "";
+      previewWrap.hidden = false;
+    } catch {
+      status.textContent = "That image didn't work. Try a PNG or JPG with a plain background.";
+    }
+    fileInput.value = "";
+  });
+
+  wrap.querySelector("#c-retry")!.addEventListener("click", () => {
+    processed = null;
+    previewWrap.hidden = true;
+    previewSprite.stop();
+  });
+
+  wrap.querySelector("#c-save")!.addEventListener("click", async () => {
+    if (!processed) return;
+    const name = nameInput.value.trim().slice(0, 18) || "My buddy";
+    await saveCustomCharacter(name, processed);
+    settings = await getSettings(); // Rust already set character_id = "custom"
+    view = createReturn;
+    render();
+  });
+}
+
 // --- onboarding ------------------------------------------------------------
 function renderOnboarding() {
   const onb = document.createElement("div");
@@ -261,7 +403,9 @@ function renderOnboarding() {
         <button class="btn-primary" id="next">Continue</button>
       </div>${dots}`;
     app.appendChild(onb);
-    onb.querySelector("#pick")!.appendChild(buildPicker((id) => update({ character_id: id })));
+    onb
+      .querySelector("#pick")!
+      .appendChild(buildPicker((id) => update({ character_id: id }), openCreate));
     onb.querySelector("#back")!.addEventListener("click", () => go(0));
     onb.querySelector("#next")!.addEventListener("click", () => go(2));
   } else if (step === 2) {
@@ -343,6 +487,32 @@ function bindSelect(scope: HTMLElement, selector: string, cb: (v: string) => voi
 function bindSwitch(scope: HTMLElement, id: string, cb: (v: boolean) => void) {
   const el = scope.querySelector<HTMLInputElement>(`#sw-${id}`);
   el?.addEventListener("change", () => cb(el.checked));
+}
+function escapeHtml(s: string): string {
+  return s.replace(
+    /[&<>"']/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!,
+  );
+}
+async function copyText(text: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return;
+  } catch {
+    /* fall through to the legacy path */
+  }
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.position = "fixed";
+  ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    document.execCommand("copy");
+  } catch {
+    /* ignore */
+  }
+  ta.remove();
 }
 
 boot();

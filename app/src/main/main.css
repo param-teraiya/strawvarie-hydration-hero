@@ -272,3 +272,132 @@ select {
 .full {
   width: 100%;
 }
+
+/* Make-your-own card + create view -------------------------------------- */
+.char-add {
+  justify-content: center;
+  gap: 6px;
+  border-style: dashed;
+  color: var(--muted);
+}
+.char-add:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.char-add-plus {
+  font-size: 26px;
+  line-height: 1;
+  height: 64px;
+  display: flex;
+  align-items: center;
+}
+
+.create-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.create-head h2 {
+  font-size: 18px;
+  margin: 0;
+}
+.create-head button {
+  padding: 6px 8px;
+}
+.create-intro {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0 0 14px;
+}
+.steps {
+  margin: 0 0 16px;
+  padding-left: 20px;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.steps li {
+  margin-bottom: 8px;
+}
+.prompt-box {
+  margin-top: 8px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 12.5px;
+  color: var(--muted);
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.prompt-box #prompt-text {
+  flex: 1;
+  line-height: 1.4;
+}
+.prompt-box .copy {
+  flex: none;
+  padding: 6px 12px;
+}
+.import-row {
+  display: flex;
+  gap: 10px;
+}
+.import-row > * {
+  flex: 1;
+  text-align: center;
+}
+.file-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.c-status {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 12px 2px 0;
+  min-height: 1em;
+}
+.preview-wrap {
+  margin-top: 14px;
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+}
+.preview-wrap canvas.sprite {
+  width: 96px;
+  height: 115px;
+  flex: none;
+}
+.preview-form {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.preview-form input {
+  font-family: var(--font);
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--card-2);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 9px 11px;
+}
+.preview-actions {
+  display: flex;
+  gap: 8px;
+}
+.preview-actions button {
+  flex: 1;
+}
+.hint {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 16px;
+}

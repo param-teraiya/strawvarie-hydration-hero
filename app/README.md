@@ -100,6 +100,24 @@ app/
 
 ---
 
+## Custom characters (the "make your own" buddy)
+
+Customers can turn a photo into their own pixel buddy, entirely on-device:
+
+1. In **Settings → Your buddy**, tap **Make your own**.
+2. The app shows a copy-paste prompt and an **Open Gemini** button. The customer
+   uploads a photo to Google Gemini, pastes the prompt, and downloads the
+   pixel-art image it generates (on a solid background).
+3. Back in the app, they pick that image. The app removes the background, crops,
+   and centers it — all in the browser engine, no server, fully offline — then
+   animates it with the same walk/sip motion as the built-ins.
+4. It's saved locally (`custom_character.json` in the config dir) and appears in
+   the picker as their own buddy.
+
+Design note: we intentionally import a single **image** (reliable to get from
+Gemini) and animate it procedurally, rather than importing a choreographed
+video. That's what makes it work for non-technical customers.
+
 ## What's intentionally simple in V1
 
 These are deliberate scope choices (kept lean on purpose), not missing work:
@@ -110,8 +128,9 @@ These are deliberate scope choices (kept lean on purpose), not missing work:
   detection. Pause from the tray in one click; set quiet hours in Settings.
 - **Manual update check** (opens GitHub Releases) instead of a background
   auto-updater — no signing/hosting set up yet.
-- **English only**, three built-in characters, reminders only (no water logging,
-  goals, or streaks).
+- **English only**; reminders only (no water logging, goals, or streaks).
+- Custom characters use **procedural animation** from a single imported image
+  (not per-character hand-drawn frames).
 
 ## Settings & data
 

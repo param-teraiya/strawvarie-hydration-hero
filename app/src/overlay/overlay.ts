@@ -7,7 +7,7 @@ import "./overlay.css";
 import { Sprite } from "../shared/sprites";
 import { applyTheme } from "../shared/theme";
 import { characterDir } from "../shared/characters";
-import { getSettings, listen, reminderAction, type Settings } from "../shared/ipc";
+import { getCustomCharacter, getSettings, listen, reminderAction, type Settings } from "../shared/ipc";
 
 const DISMISS_AFTER_MS = 45_000;
 const WALK_MS = 1000;
@@ -69,6 +69,14 @@ function chime() {
 }
 
 async function ensureCharacter(id: string) {
+  if (id === "custom") {
+    const custom = await getCustomCharacter();
+    if (custom) {
+      if (sprite.id !== "custom") await sprite.loadProcedural(custom.image);
+      return;
+    }
+    id = "berry"; // custom selected but missing — fall back gracefully
+  }
   if (sprite.id !== id) {
     await sprite.load(characterDir(id));
   }

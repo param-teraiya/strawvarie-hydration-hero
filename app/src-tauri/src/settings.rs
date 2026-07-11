@@ -69,7 +69,10 @@ impl Settings {
         if !matches!(self.theme.as_str(), "system" | "light" | "dark") {
             self.theme = "system".into();
         }
-        let valid_char = matches!(self.character_id.as_str(), "berry" | "drip" | "sprout");
+        let valid_char = matches!(
+            self.character_id.as_str(),
+            "berry" | "drip" | "sprout" | "custom"
+        );
         if !valid_char {
             self.character_id = "berry".into();
         }
