@@ -52,6 +52,7 @@ function openCreate() {
 const app = document.getElementById("app")!;
 
 async function boot() {
+  setupTooltips();
   settings = await getSettings();
   applyTheme(settings.theme);
   view = settings.onboarding_complete ? "settings" : "onboarding";
@@ -517,7 +518,51 @@ function sel(key: keyof Settings, value: string): string {
   return settings[key] === value ? "selected" : "";
 }
 function infoIcon(text: string): string {
-  return `<span class="info-icon" title="${escapeHtml(text)}" role="img" aria-label="More information">i</span>`;
+  // Uses a custom tooltip (see setupTooltips) — the native `title` tooltip
+  // does not render inside Tauri's WKWebView.
+  return `<span class="info-icon" data-tip="${escapeHtml(text)}" role="img" aria-label="More information" tabindex="0">i</span>`;
+}
+
+/** A single custom tooltip driven by hover/focus of any [data-tip] element. */
+function setupTooltips() {
+  const tip = document.createElement("div");
+  tip.className = "tooltip";
+  tip.setAttribute("role", "tooltip");
+  document.body.appendChild(tip);
+
+  const show = (el: HTMLElement) => {
+    const text = el.getAttribute("data-tip");
+    if (!text) return;
+    tip.textContent = text;
+    tip.classList.add("show");
+    const r = el.getBoundingClientRect();
+    const tw = tip.offsetWidth;
+    const th = tip.offsetHeight;
+    let left = r.left + r.width / 2 - tw / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth - tw - 8));
+    let top = r.top - th - 8;
+    if (top < 8) top = r.bottom + 8; // flip below if there's no room above
+    tip.style.left = `${left}px`;
+    tip.style.top = `${top}px`;
+  };
+  const hide = () => tip.classList.remove("show");
+
+  const target = (e: Event) =>
+    (e.target as HTMLElement | null)?.closest?.(".info-icon") as HTMLElement | null;
+  document.addEventListener("mouseover", (e) => {
+    const el = target(e);
+    if (el) show(el);
+  });
+  document.addEventListener("mouseout", (e) => {
+    if (target(e)) hide();
+  });
+  document.addEventListener("focusin", (e) => {
+    const el = target(e);
+    if (el) show(el);
+  });
+  document.addEventListener("focusout", (e) => {
+    if (target(e)) hide();
+  });
 }
 function switchHtml(id: string, on: boolean): string {
   return `<label class="switch control"><input type="checkbox" id="sw-${id}" ${on ? "checked" : ""}/><span class="track"></span><span class="thumb"></span></label>`;
