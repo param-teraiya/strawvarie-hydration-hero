@@ -22,7 +22,8 @@ import {
 } from "../shared/ipc";
 
 const SHOP_URL = "https://strawvarie.in";
-const RELEASES_URL = "https://github.com/strawvarie/hydration-hero/releases";
+const RELEASES_URL =
+  "https://github.com/param-teraiya/strawvarie-hydration-hero/releases/latest";
 const GEMINI_URL = "https://gemini.google.com/app";
 const INTERVAL_PRESETS = [30, 45, 60, 90];
 const LOGIN_HELP =
