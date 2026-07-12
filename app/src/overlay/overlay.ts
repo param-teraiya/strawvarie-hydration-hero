@@ -45,6 +45,9 @@ const sprite = new Sprite(canvas);
 let busy = false;
 let dismissTimer = 0;
 let audioCtx: AudioContext | null = null;
+// The buddy walks in from (and out to) the screen edge nearest its corner.
+let enterOffset = -200;
+let exitOffset = -240;
 
 function chime() {
   try {
@@ -91,6 +94,12 @@ async function run(settings: Settings) {
   snoozeBtn.textContent = `Snooze ${settings.snooze_minutes}m`;
   cloud.classList.remove("show");
 
+  // Mirror the layout and entrance direction for right-side corners.
+  const fromRight = settings.corner.includes("right");
+  root.classList.toggle("from-right", fromRight);
+  enterOffset = fromRight ? 200 : -200;
+  exitOffset = fromRight ? 240 : -240;
+
   if (settings.sound_enabled) chime();
 
   if (sprite.reduceMotion) {
@@ -101,9 +110,9 @@ async function run(settings: Settings) {
     return;
   }
 
-  // Walk in from the left, then settle into idle and reveal the bubble.
+  // Walk in from the nearest edge, then settle into idle and reveal the bubble.
   characterEl.classList.remove("walk-anim");
-  characterEl.style.transform = "translateX(-200px)";
+  characterEl.style.transform = `translateX(${enterOffset}px)`;
   sprite.play("walk", { loop: true });
   requestAnimationFrame(() => {
     characterEl.classList.add("walk-anim");
@@ -133,7 +142,7 @@ function finish(action: "drank" | "snooze" | "dismiss") {
     }
     sprite.play("walk", { loop: true });
     characterEl.classList.add("walk-anim");
-    characterEl.style.transform = "translateX(240px)";
+    characterEl.style.transform = `translateX(${exitOffset}px)`;
     window.setTimeout(() => close(action), WALK_MS);
   };
 
@@ -150,7 +159,7 @@ async function close(action: "drank" | "snooze" | "dismiss") {
   await getCurrentWindow().hide();
   // reset for next time
   characterEl.classList.remove("walk-anim");
-  characterEl.style.transform = "translateX(-200px)";
+  characterEl.style.transform = `translateX(${enterOffset}px)`;
   busy = false;
 }
 

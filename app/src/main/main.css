@@ -36,9 +36,13 @@
   letter-spacing: -0.01em;
 }
 .brand .sub {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--muted);
-  margin: 1px 0 0;
+  margin: 2px 0 0;
+}
+.brand .sub strong {
+  color: var(--ink);
+  font-weight: 700;
 }
 
 /* Sections --------------------------------------------------------------- */
@@ -91,6 +95,55 @@ select {
   border: 1px solid var(--border);
   border-radius: 9px;
   padding: 7px 10px;
+}
+
+/* Info icon + tooltip ---------------------------------------------------- */
+.info-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  margin-left: 5px;
+  border-radius: 50%;
+  background: var(--border);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  font-style: normal;
+  cursor: help;
+  vertical-align: text-top;
+  user-select: none;
+}
+.info-icon:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* Interval control: presets + custom input ------------------------------- */
+.interval-control {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+}
+.custom-interval {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.custom-interval input {
+  width: 58px;
+  font-family: var(--font);
+  font-size: 14px;
+  text-align: center;
+  color: var(--ink);
+  background: var(--card-2);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 6px 8px;
 }
 
 /* Preset button group ---------------------------------------------------- */

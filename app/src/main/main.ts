@@ -25,6 +25,10 @@ const SHOP_URL = "https://strawvarie.in";
 const RELEASES_URL = "https://github.com/strawvarie/hydration-hero/releases";
 const GEMINI_URL = "https://gemini.google.com/app";
 const INTERVAL_PRESETS = [30, 45, 60, 90];
+const LOGIN_HELP =
+  "When this is on, Hydration Hero starts automatically every time you turn on your " +
+  "computer and waits quietly in the menu bar at the top of the screen. You won't need " +
+  "to open it yourself. Turn it off if you'd rather open the app manually.";
 const GEMINI_PROMPT =
   "Turn the person in this photo into a cute full-body pixel-art character, " +
   "16-bit retro game style, standing and facing forward, full body from head to feet, " +
@@ -137,7 +141,7 @@ function renderSettings() {
   wrap.className = "content";
   wrap.innerHTML = `
     <div class="brand">${DROP_SVG}
-      <div><h1>Hydration Hero</h1><p class="sub">by Strawvarie · stay refreshed</p></div>
+      <div><h1>Hydration Hero</h1><p class="sub">by <strong>Strawvarie</strong></p></div>
     </div>
 
     <div class="section">
@@ -149,9 +153,15 @@ function renderSettings() {
       <p class="section-title">Reminders</p>
       <div class="card">
         <div class="row">
-          <div><div class="label">Remind me every</div><div class="desc">How often your buddy pops by</div></div>
-          <div class="control presets" id="interval-presets">
-            ${INTERVAL_PRESETS.map((m) => `<button data-m="${m}" class="${m === settings.interval_minutes ? "active" : ""}">${m}m</button>`).join("")}
+          <div><div class="label">Remind me every</div><div class="desc">Pick a preset or type your own</div></div>
+          <div class="control interval-control">
+            <div class="presets" id="interval-presets">
+              ${INTERVAL_PRESETS.map((m) => `<button data-m="${m}" class="${m === settings.interval_minutes ? "active" : ""}">${m}m</button>`).join("")}
+            </div>
+            <div class="custom-interval">
+              <input type="number" id="interval-input" min="1" max="480" value="${settings.interval_minutes}" aria-label="Custom minutes between reminders"/>
+              <span>min</span>
+            </div>
           </div>
         </div>
         <div class="row">
@@ -208,7 +218,10 @@ function renderSettings() {
           ${switchHtml("sound", settings.sound_enabled)}
         </div>
         <div class="row">
-          <div><div class="label">Open at login</div><div class="desc">Start quietly when your computer does</div></div>
+          <div>
+            <div class="label">Open at login ${infoIcon(LOGIN_HELP)}</div>
+            <div class="desc">Hydration Hero opens by itself when you turn on your computer, so you never forget to run it.</div>
+          </div>
           ${switchHtml("login", settings.launch_at_login)}
         </div>
       </div>
@@ -227,12 +240,27 @@ function renderSettings() {
     .querySelector("#picker-slot")!
     .appendChild(buildPicker((id) => update({ character_id: id }), openCreate));
 
+  const intervalInput = wrap.querySelector<HTMLInputElement>("#interval-input")!;
+  const syncPresets = (val: number) => {
+    wrap
+      .querySelectorAll<HTMLButtonElement>("#interval-presets button")
+      .forEach((n) => n.classList.toggle("active", Number(n.dataset.m) === val));
+  };
   wrap.querySelectorAll<HTMLButtonElement>("#interval-presets button").forEach((b) => {
     b.addEventListener("click", () => {
-      wrap.querySelectorAll("#interval-presets button").forEach((n) => n.classList.remove("active"));
-      b.classList.add("active");
-      update({ interval_minutes: Number(b.dataset.m) });
+      const val = Number(b.dataset.m);
+      intervalInput.value = String(val);
+      syncPresets(val);
+      update({ interval_minutes: val });
     });
+  });
+  intervalInput.addEventListener("change", () => {
+    let val = Math.round(Number(intervalInput.value));
+    if (!Number.isFinite(val) || val < 1) val = 1;
+    if (val > 480) val = 480;
+    intervalInput.value = String(val);
+    syncPresets(val);
+    update({ interval_minutes: val });
   });
   bindSelect(wrap, "#start-h", (v) => update({ active_start_hour: Number(v) }));
   bindSelect(wrap, "#end-h", (v) => update({ active_end_hour: Number(v) }));
@@ -255,7 +283,7 @@ async function renderAbout() {
   wrap.className = "content about";
   wrap.innerHTML = `
     <div class="brand" style="justify-content:center">${DROP_SVG}
-      <div style="text-align:left"><h1>Hydration Hero</h1><p class="sub">by Strawvarie</p></div>
+      <div style="text-align:left"><h1>Hydration Hero</h1><p class="sub">by <strong>Strawvarie</strong></p></div>
     </div>
     <p class="privacy">Everything stays on your device. No accounts, no tracking, no data
       leaves your computer. The app only reaches the internet if you tap “Check for updates”.</p>
@@ -455,8 +483,8 @@ function renderOnboarding() {
         <canvas class="sprite" id="done"></canvas>
         <h2>that's it!</h2>
         <p>i live in your menu bar now — look for the little droplet up top. tap it any time to pause or change things.</p>
-        <div class="row" style="width:100%;max-width:320px;background:var(--card);border:1px solid var(--border);border-radius:12px">
-          <div style="text-align:left"><div class="label">Open at login</div><div class="desc">Start quietly with your computer</div></div>
+        <div class="row" style="width:100%;max-width:340px;background:var(--card);border:1px solid var(--border);border-radius:12px">
+          <div style="text-align:left"><div class="label">Open at login ${infoIcon(LOGIN_HELP)}</div><div class="desc">Opens by itself when you start your computer</div></div>
           ${switchHtml("login", settings.launch_at_login)}
         </div>
       </div>
@@ -487,6 +515,9 @@ function go(next: number) {
 // --- small DOM helpers -----------------------------------------------------
 function sel(key: keyof Settings, value: string): string {
   return settings[key] === value ? "selected" : "";
+}
+function infoIcon(text: string): string {
+  return `<span class="info-icon" title="${escapeHtml(text)}" role="img" aria-label="More information">i</span>`;
 }
 function switchHtml(id: string, on: boolean): string {
   return `<label class="switch control"><input type="checkbox" id="sw-${id}" ${on ? "checked" : ""}/><span class="track"></span><span class="thumb"></span></label>`;

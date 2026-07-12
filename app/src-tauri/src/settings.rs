@@ -55,7 +55,7 @@ impl Default for Settings {
 impl Settings {
     /// Keep values inside sane bounds so a bad edit can't wedge the scheduler.
     pub fn sanitize(&mut self) {
-        self.interval_minutes = self.interval_minutes.clamp(15, 240);
+        self.interval_minutes = self.interval_minutes.clamp(1, 480);
         self.snooze_minutes = self.snooze_minutes.clamp(1, 120);
         self.active_start_hour = self.active_start_hour.min(23);
         self.active_end_hour = self.active_end_hour.min(24);

@@ -102,6 +102,22 @@
   box-shadow: var(--shadow);
 }
 
+/* Right-side corners: mirror so the buddy stands near the screen edge it came
+   from, with the speech bubble on its inner side. */
+.from-right .character {
+  left: auto;
+  right: 22px;
+}
+.from-right .cloud {
+  left: 18px;
+  right: 150px;
+  align-items: flex-end;
+}
+.from-right .bubble::after {
+  left: auto;
+  right: 18px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .character,
   .cloud {

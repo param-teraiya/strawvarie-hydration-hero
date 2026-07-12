@@ -43,8 +43,9 @@ fn position_in_corner(app: &AppHandle, win: &tauri::WebviewWindow, corner: &str)
         return;
     };
 
-    let mp = monitor.position();
-    let ms = monitor.size();
+    // Use the work area (excludes the Dock and menu bar) so the buddy never
+    // hides behind the Dock.
+    let area = monitor.work_area();
     let scale = monitor.scale_factor();
     let margin = (MARGIN_LOGICAL * scale) as i32;
 
@@ -55,8 +56,8 @@ fn position_in_corner(app: &AppHandle, win: &tauri::WebviewWindow, corner: &str)
     let ww = win_size.width as i32;
     let wh = win_size.height as i32;
 
-    let (mx, my) = (mp.x, mp.y);
-    let (mw, mh) = (ms.width as i32, ms.height as i32);
+    let (mx, my) = (area.position.x, area.position.y);
+    let (mw, mh) = (area.size.width as i32, area.size.height as i32);
 
     let (x, y) = match corner {
         "bottom-left" => (mx + margin, my + mh - wh - margin),
