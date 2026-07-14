@@ -12,7 +12,8 @@ import { getCustomCharacter, getSettings, listen, reminderAction, type Settings 
 
 const DISMISS_AFTER_MS = 45_000;
 const CARD_EXIT_MS = 260;
-const SETTLE_MS = 700;
+const WALK_MS = 800;
+const OFFSCREEN = "translateX(-120px)"; // buddy parked off the card's left edge
 
 const LINES = [
   "time for a sip 💧",
@@ -99,14 +100,26 @@ async function run(settings: Settings) {
 
   if (settings.sound_enabled) chime();
 
-  // Slide the glass card in.
+  // Reset: card hidden, buddy parked off the left edge (no transition yet).
   card.classList.remove("in", "out");
-  void card.offsetWidth; // force reflow so the transition replays
-  requestAnimationFrame(() => card.classList.add("in"));
+  canvas.classList.remove("walking");
+  canvas.style.transform = OFFSCREEN;
+  void card.offsetWidth; // force reflow so the transitions replay cleanly
 
-  // Buddy walks into place, then idles.
-  sprite.play("walk", { loop: true });
-  settleTimer = window.setTimeout(() => sprite.play("idle", { loop: true }), SETTLE_MS);
+  if (sprite.reduceMotion) {
+    canvas.style.transform = "translateX(0)";
+    card.classList.add("in");
+    sprite.play("idle", { loop: true });
+  } else {
+    // Card slides in while the buddy walks into place from the edge.
+    sprite.play("walk", { loop: true });
+    requestAnimationFrame(() => {
+      card.classList.add("in");
+      canvas.classList.add("walking");
+      canvas.style.transform = "translateX(0)";
+    });
+    settleTimer = window.setTimeout(() => sprite.play("idle", { loop: true }), WALK_MS);
+  }
 
   dismissTimer = window.setTimeout(() => finish("dismiss"), DISMISS_AFTER_MS);
 }
@@ -117,16 +130,27 @@ function finish(action: "drank" | "snooze" | "dismiss") {
   clearTimeout(dismissTimer);
   clearTimeout(settleTimer);
 
-  const exit = () => {
+  const fadeAndClose = () => {
     card.classList.remove("in");
     card.classList.add("out");
     window.setTimeout(() => close(action), CARD_EXIT_MS);
   };
+  const walkOut = () => {
+    if (sprite.reduceMotion) {
+      fadeAndClose();
+      return;
+    }
+    // Stroll back out the edge the buddy came in from, then fade the card.
+    sprite.play("walk", { loop: true });
+    canvas.classList.add("walking");
+    canvas.style.transform = OFFSCREEN;
+    window.setTimeout(fadeAndClose, WALK_MS);
+  };
 
   if (action === "drank") {
-    sprite.play("drink", { loop: false, onComplete: exit });
+    sprite.play("drink", { loop: false, onComplete: walkOut });
   } else {
-    exit();
+    walkOut();
   }
 }
 
@@ -135,6 +159,8 @@ async function close(action: "drank" | "snooze" | "dismiss") {
   sprite.stop();
   await getCurrentWindow().hide();
   card.classList.remove("in", "out");
+  canvas.classList.remove("walking");
+  canvas.style.transform = OFFSCREEN;
   busy = false;
 }
 

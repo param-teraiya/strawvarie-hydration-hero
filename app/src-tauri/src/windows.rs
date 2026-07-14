@@ -26,6 +26,10 @@ pub fn trigger_reminder(app: &AppHandle) {
     };
 
     position_in_corner(app, &win, &corner);
+    // Surface on the user's current Space and float above the active app,
+    // without stealing keyboard focus (the window is non-activating).
+    let _ = win.set_visible_on_all_workspaces(true);
+    let _ = win.set_always_on_top(true);
     let _ = win.show();
     // The overlay window fetches its own settings and starts the animation.
     let _ = app.emit("reminder-show", ());
