@@ -1,6 +1,7 @@
-// The reminder overlay: the pixel buddy walks into a screen corner, shows a
-// speech bubble with actions, and walks off. Rust shows this window and emits
-// "reminder-show"; the window fetches its own settings and runs the sequence.
+// The reminder overlay: a frosted-glass card in a screen corner holding the
+// pixel buddy, the message, Strawvarie branding, and the actions. Rust shows
+// this (transparent, non-focusing) window and emits "reminder-show"; the window
+// fetches its own settings and animates the card in.
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import "../shared/theme.css";
 import "./overlay.css";
@@ -10,7 +11,8 @@ import { characterDir } from "../shared/characters";
 import { getCustomCharacter, getSettings, listen, reminderAction, type Settings } from "../shared/ipc";
 
 const DISMISS_AFTER_MS = 45_000;
-const WALK_MS = 1000;
+const CARD_EXIT_MS = 260;
+const SETTLE_MS = 700;
 
 const LINES = [
   "time for a sip 💧",
@@ -19,35 +21,35 @@ const LINES = [
   "your tumbler misses you 💧",
 ];
 
+const DROP = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C12 2 4 11 4 16a8 8 0 0 0 16 0C20 11 12 2 12 2Z" fill="var(--accent)"/></svg>`;
+
 const root = document.getElementById("overlay-root")!;
 root.innerHTML = `
-  <div class="character"><canvas class="sprite"></canvas></div>
-  <div class="cloud">
-    <div class="bubble">
-      <span class="bubble-text">time for a sip 💧</span>
-      <button class="dismiss-x" title="Dismiss" aria-label="Dismiss reminder">✕</button>
-    </div>
-    <div class="actions">
-      <button class="btn-primary drank">I drank 💧</button>
-      <button class="btn-secondary snooze">Snooze</button>
+  <div class="glass-card" id="card">
+    <button class="x" id="x" aria-label="Dismiss reminder">✕</button>
+    <div class="hero"><canvas class="sprite"></canvas></div>
+    <div class="body">
+      <div class="brand-row">${DROP}<span class="brand-name">Strawvarie</span></div>
+      <div class="headline" id="headline">time for a sip 💧</div>
+      <div class="actions">
+        <button class="btn-primary" id="drank">I drank 💧</button>
+        <button class="btn-secondary" id="snooze">Snooze</button>
+      </div>
     </div>
   </div>`;
 
-const characterEl = root.querySelector<HTMLDivElement>(".character")!;
+const card = root.querySelector<HTMLDivElement>("#card")!;
 const canvas = root.querySelector<HTMLCanvasElement>("canvas.sprite")!;
-const cloud = root.querySelector<HTMLDivElement>(".cloud")!;
-const bubbleText = root.querySelector<HTMLSpanElement>(".bubble-text")!;
-const drankBtn = root.querySelector<HTMLButtonElement>(".drank")!;
-const snoozeBtn = root.querySelector<HTMLButtonElement>(".snooze")!;
-const dismissBtn = root.querySelector<HTMLButtonElement>(".dismiss-x")!;
+const headline = root.querySelector<HTMLDivElement>("#headline")!;
+const drankBtn = root.querySelector<HTMLButtonElement>("#drank")!;
+const snoozeBtn = root.querySelector<HTMLButtonElement>("#snooze")!;
+const xBtn = root.querySelector<HTMLButtonElement>("#x")!;
 
 const sprite = new Sprite(canvas);
 let busy = false;
 let dismissTimer = 0;
+let settleTimer = 0;
 let audioCtx: AudioContext | null = null;
-// The buddy walks in from (and out to) the screen edge nearest its corner.
-let enterOffset = -200;
-let exitOffset = -240;
 
 function chime() {
   try {
@@ -88,44 +90,24 @@ async function ensureCharacter(id: string) {
 async function run(settings: Settings) {
   busy = false;
   clearTimeout(dismissTimer);
+  clearTimeout(settleTimer);
+
   await ensureCharacter(settings.character_id);
   applyTheme(settings.theme);
-  bubbleText.textContent = LINES[Math.floor(Math.random() * LINES.length)];
+  headline.textContent = LINES[Math.floor(Math.random() * LINES.length)];
   snoozeBtn.textContent = `Snooze ${settings.snooze_minutes}m`;
-  cloud.classList.remove("show");
-
-  // Mirror the layout and entrance direction for right-side corners.
-  const fromRight = settings.corner.includes("right");
-  root.classList.toggle("from-right", fromRight);
-  enterOffset = fromRight ? 200 : -200;
-  exitOffset = fromRight ? 240 : -240;
 
   if (settings.sound_enabled) chime();
 
-  if (sprite.reduceMotion) {
-    characterEl.classList.remove("walk-anim");
-    characterEl.style.transform = "translateX(0)";
-    sprite.play("idle", { loop: true });
-    revealControls();
-    return;
-  }
+  // Slide the glass card in.
+  card.classList.remove("in", "out");
+  void card.offsetWidth; // force reflow so the transition replays
+  requestAnimationFrame(() => card.classList.add("in"));
 
-  // Walk in from the nearest edge, then settle into idle and reveal the bubble.
-  characterEl.classList.remove("walk-anim");
-  characterEl.style.transform = `translateX(${enterOffset}px)`;
+  // Buddy walks into place, then idles.
   sprite.play("walk", { loop: true });
-  requestAnimationFrame(() => {
-    characterEl.classList.add("walk-anim");
-    characterEl.style.transform = "translateX(0)";
-  });
-  window.setTimeout(() => {
-    sprite.play("idle", { loop: true });
-    revealControls();
-  }, WALK_MS);
-}
+  settleTimer = window.setTimeout(() => sprite.play("idle", { loop: true }), SETTLE_MS);
 
-function revealControls() {
-  cloud.classList.add("show");
   dismissTimer = window.setTimeout(() => finish("dismiss"), DISMISS_AFTER_MS);
 }
 
@@ -133,23 +115,18 @@ function finish(action: "drank" | "snooze" | "dismiss") {
   if (busy) return;
   busy = true;
   clearTimeout(dismissTimer);
-  cloud.classList.remove("show");
+  clearTimeout(settleTimer);
 
-  const walkOut = () => {
-    if (sprite.reduceMotion) {
-      close(action);
-      return;
-    }
-    sprite.play("walk", { loop: true });
-    characterEl.classList.add("walk-anim");
-    characterEl.style.transform = `translateX(${exitOffset}px)`;
-    window.setTimeout(() => close(action), WALK_MS);
+  const exit = () => {
+    card.classList.remove("in");
+    card.classList.add("out");
+    window.setTimeout(() => close(action), CARD_EXIT_MS);
   };
 
   if (action === "drank") {
-    sprite.play("drink", { loop: false, onComplete: walkOut });
+    sprite.play("drink", { loop: false, onComplete: exit });
   } else {
-    walkOut();
+    exit();
   }
 }
 
@@ -157,15 +134,13 @@ async function close(action: "drank" | "snooze" | "dismiss") {
   await reminderAction(action);
   sprite.stop();
   await getCurrentWindow().hide();
-  // reset for next time
-  characterEl.classList.remove("walk-anim");
-  characterEl.style.transform = `translateX(${enterOffset}px)`;
+  card.classList.remove("in", "out");
   busy = false;
 }
 
 drankBtn.addEventListener("click", () => finish("drank"));
 snoozeBtn.addEventListener("click", () => finish("snooze"));
-dismissBtn.addEventListener("click", () => finish("dismiss"));
+xBtn.addEventListener("click", () => finish("dismiss"));
 
 // Rust shows the window then emits this; we fetch settings and run.
 listen("reminder-show", async () => {
