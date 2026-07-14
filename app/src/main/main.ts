@@ -158,15 +158,14 @@ function renderSettings() {
       <p class="section-title">Reminders</p>
       <div class="card">
         <div class="row stack">
-          <div><div class="label">Remind me every</div><div class="desc">Pick a preset, or set a custom time below</div></div>
+          <div><div class="label">Remind me every</div><div class="desc">Pick a preset or type your own</div></div>
           <div class="interval-options" id="interval-presets">
-            ${INTERVAL_PRESETS.map((m) => `<button data-m="${m}" class="${m === draft.interval_minutes ? "active" : ""}">${m} min</button>`).join("")}
+            ${INTERVAL_PRESETS.map((m) => `<button data-m="${m}" class="${m === draft.interval_minutes ? "active" : ""}">${m}m</button>`).join("")}
+            <label class="custom-slot" for="interval-input">
+              <input type="number" id="interval-input" min="1" max="480" value="${draft.interval_minutes}" aria-label="Custom minutes between reminders" />
+              <span>m</span>
+            </label>
           </div>
-          <label class="custom-interval" for="interval-input">
-            <span class="ci-label">Custom</span>
-            <input type="number" id="interval-input" min="1" max="480" value="${draft.interval_minutes}" aria-label="Custom minutes between reminders" />
-            <span class="ci-unit">minutes</span>
-          </label>
         </div>
         <div class="row">
           <div><div class="label">Active hours</div><div class="desc">Only remind me between these times</div></div>

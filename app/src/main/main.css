@@ -169,48 +169,46 @@ select {
   border-color: var(--accent);
 }
 
-/* ...and a clearly-editable custom field below them. */
-.custom-interval {
+/* ...with the custom value as the 4th slot, styled as a recessed text field
+   (inset + caret + focus ring) so it clearly reads as editable. */
+.custom-slot {
+  flex: 1;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
+  justify-content: center;
+  gap: 2px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: var(--card-2);
+  background: var(--card);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
   cursor: text;
   transition: border-color 0.12s ease, box-shadow 0.12s ease;
 }
-.custom-interval:focus-within {
+.custom-slot:focus-within {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
-.custom-interval .ci-label {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--ink);
-}
-.custom-interval input {
-  flex: 1;
-  min-width: 0;
+.custom-slot input {
+  width: 30px;
   border: none;
   background: transparent;
   color: var(--ink);
   font-family: var(--font);
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 600;
   text-align: right;
-  padding: 0;
+  padding: 9px 0;
   outline: none;
+  caret-color: var(--accent);
   -moz-appearance: textfield;
 }
-.custom-interval input::-webkit-outer-spin-button,
-.custom-interval input::-webkit-inner-spin-button {
+.custom-slot input::-webkit-outer-spin-button,
+.custom-slot input::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
-.custom-interval .ci-unit {
-  font-size: 13px;
+.custom-slot span {
+  font-size: 11px;
   color: var(--muted);
 }
 
