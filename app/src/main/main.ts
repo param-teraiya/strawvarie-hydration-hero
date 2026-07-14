@@ -25,7 +25,7 @@ const SHOP_URL = "https://strawvarie.in";
 const RELEASES_URL =
   "https://github.com/param-teraiya/strawvarie-hydration-hero/releases/latest";
 const GEMINI_URL = "https://gemini.google.com/app";
-const INTERVAL_PRESETS = [30, 45, 60, 90];
+const INTERVAL_PRESETS = [30, 60, 120];
 const LOGIN_HELP =
   "When this is on, Hydration Hero starts automatically every time you turn on your " +
   "computer and waits quietly in the menu bar at the top of the screen. You won't need " +
@@ -139,6 +139,9 @@ function hourOptions(selected: number): string {
 
 // --- settings --------------------------------------------------------------
 function renderSettings() {
+  // Changes are staged in `draft` and only persisted on "Save & Apply".
+  const draft: Settings = { ...settings };
+
   const wrap = document.createElement("div");
   wrap.className = "content";
   wrap.innerHTML = `
@@ -154,14 +157,12 @@ function renderSettings() {
     <div class="section">
       <p class="section-title">Reminders</p>
       <div class="card">
-        <div class="row">
+        <div class="row stack">
           <div><div class="label">Remind me every</div><div class="desc">Pick a preset or type your own</div></div>
-          <div class="control interval-control">
-            <div class="presets" id="interval-presets">
-              ${INTERVAL_PRESETS.map((m) => `<button data-m="${m}" class="${m === settings.interval_minutes ? "active" : ""}">${m}m</button>`).join("")}
-            </div>
+          <div class="interval-options" id="interval-presets">
+            ${INTERVAL_PRESETS.map((m) => `<button data-m="${m}" class="${m === draft.interval_minutes ? "active" : ""}">${m}m</button>`).join("")}
             <div class="custom-interval">
-              <input type="number" id="interval-input" min="1" max="480" value="${settings.interval_minutes}" aria-label="Custom minutes between reminders"/>
+              <input type="number" id="interval-input" min="1" max="480" value="${draft.interval_minutes}" aria-label="Custom minutes between reminders"/>
               <span>min</span>
             </div>
           </div>
@@ -169,16 +170,16 @@ function renderSettings() {
         <div class="row">
           <div><div class="label">Active hours</div><div class="desc">Only remind me between these times</div></div>
           <div class="control field-row">
-            <select id="start-h">${hourOptions(settings.active_start_hour)}</select>
+            <select id="start-h">${hourOptions(draft.active_start_hour)}</select>
             <span style="color:var(--muted)">to</span>
-            <select id="end-h">${hourOptions(settings.active_end_hour)}</select>
+            <select id="end-h">${hourOptions(draft.active_end_hour)}</select>
           </div>
         </div>
         <div class="row">
           <div><div class="label">Snooze length</div><div class="desc">Delay when you tap snooze</div></div>
           <div class="control">
             <select id="snooze">
-              ${[5, 10, 15, 20, 30].map((m) => `<option value="${m}" ${m === settings.snooze_minutes ? "selected" : ""}>${m} min</option>`).join("")}
+              ${[5, 10, 15, 20, 30].map((m) => `<option value="${m}" ${m === draft.snooze_minutes ? "selected" : ""}>${m} min</option>`).join("")}
             </select>
           </div>
         </div>
@@ -217,14 +218,14 @@ function renderSettings() {
       <div class="card">
         <div class="row">
           <div><div class="label">Chime on reminder</div><div class="desc">A soft sound when your buddy arrives</div></div>
-          ${switchHtml("sound", settings.sound_enabled)}
+          ${switchHtml("sound", draft.sound_enabled)}
         </div>
         <div class="row">
           <div>
             <div class="label">Open at login ${infoIcon(LOGIN_HELP)}</div>
             <div class="desc">Hydration Hero opens by itself when you turn on your computer, so you never forget to run it.</div>
           </div>
-          ${switchHtml("login", settings.launch_at_login)}
+          ${switchHtml("login", draft.launch_at_login)}
         </div>
       </div>
     </div>`;
@@ -232,15 +233,24 @@ function renderSettings() {
   const footer = document.createElement("div");
   footer.className = "footer";
   footer.innerHTML = `
-    <button class="btn-primary full" id="preview">Preview a reminder</button>
+    <button class="btn-primary full" id="save" disabled>Save &amp; apply</button>
     <button class="btn-ghost full" id="to-about">About &amp; privacy</button>`;
 
   app.appendChild(wrap);
   app.appendChild(footer);
 
-  wrap
-    .querySelector("#picker-slot")!
-    .appendChild(buildPicker((id) => update({ character_id: id }), openCreate));
+  const saveBtn = footer.querySelector<HTMLButtonElement>("#save")!;
+  // Enable Save only when something actually changed.
+  const markDirty = () => {
+    saveBtn.disabled = JSON.stringify(draft) === JSON.stringify(settings);
+  };
+
+  wrap.querySelector("#picker-slot")!.appendChild(
+    buildPicker((id) => {
+      draft.character_id = id;
+      markDirty();
+    }, openCreate),
+  );
 
   const intervalInput = wrap.querySelector<HTMLInputElement>("#interval-input")!;
   const syncPresets = (val: number) => {
@@ -248,12 +258,16 @@ function renderSettings() {
       .querySelectorAll<HTMLButtonElement>("#interval-presets button")
       .forEach((n) => n.classList.toggle("active", Number(n.dataset.m) === val));
   };
+  const setInterval = (val: number) => {
+    draft.interval_minutes = val;
+    syncPresets(val);
+    markDirty();
+  };
   wrap.querySelectorAll<HTMLButtonElement>("#interval-presets button").forEach((b) => {
     b.addEventListener("click", () => {
       const val = Number(b.dataset.m);
       intervalInput.value = String(val);
-      syncPresets(val);
-      update({ interval_minutes: val });
+      setInterval(val);
     });
   });
   intervalInput.addEventListener("change", () => {
@@ -261,18 +275,51 @@ function renderSettings() {
     if (!Number.isFinite(val) || val < 1) val = 1;
     if (val > 480) val = 480;
     intervalInput.value = String(val);
-    syncPresets(val);
-    update({ interval_minutes: val });
+    setInterval(val);
   });
-  bindSelect(wrap, "#start-h", (v) => update({ active_start_hour: Number(v) }));
-  bindSelect(wrap, "#end-h", (v) => update({ active_end_hour: Number(v) }));
-  bindSelect(wrap, "#snooze", (v) => update({ snooze_minutes: Number(v) }));
-  bindSelect(wrap, "#corner", (v) => update({ corner: v }));
-  bindSelect(wrap, "#theme", (v) => update({ theme: v as Settings["theme"] }));
-  bindSwitch(wrap, "sound", (v) => update({ sound_enabled: v }));
-  bindSwitch(wrap, "login", (v) => update({ launch_at_login: v }));
 
-  footer.querySelector("#preview")!.addEventListener("click", () => remindNow());
+  bindSelect(wrap, "#start-h", (v) => {
+    draft.active_start_hour = Number(v);
+    markDirty();
+  });
+  bindSelect(wrap, "#end-h", (v) => {
+    draft.active_end_hour = Number(v);
+    markDirty();
+  });
+  bindSelect(wrap, "#snooze", (v) => {
+    draft.snooze_minutes = Number(v);
+    markDirty();
+  });
+  bindSelect(wrap, "#corner", (v) => {
+    draft.corner = v;
+    markDirty();
+  });
+  bindSelect(wrap, "#theme", (v) => {
+    draft.theme = v as Settings["theme"];
+    applyTheme(draft.theme); // live preview
+    markDirty();
+  });
+  bindSwitch(wrap, "sound", (v) => {
+    draft.sound_enabled = v;
+    markDirty();
+  });
+  bindSwitch(wrap, "login", (v) => {
+    draft.launch_at_login = v;
+    markDirty();
+  });
+
+  saveBtn.addEventListener("click", async () => {
+    saveBtn.disabled = true;
+    await saveSettings(draft); // persist + reschedule next for the new interval
+    settings = { ...draft };
+    await remindNow(); // immediate reminder as confirmation; next fires after the interval
+    saveBtn.textContent = "Saved ✓  here's your reminder";
+    setTimeout(() => {
+      saveBtn.textContent = "Save & apply";
+      markDirty();
+    }, 2000);
+  });
+
   footer.querySelector("#to-about")!.addEventListener("click", () => {
     view = "about";
     render();

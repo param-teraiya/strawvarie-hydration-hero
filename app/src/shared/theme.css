@@ -114,6 +114,13 @@ button:focus-visible {
 .btn-primary:hover {
   background: var(--btn-hover);
 }
+.btn-primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.btn-primary:disabled:hover {
+  background: var(--btn);
+}
 .btn-secondary {
   background: var(--card-2);
   color: var(--ink);
