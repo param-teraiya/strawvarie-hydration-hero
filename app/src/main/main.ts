@@ -52,16 +52,31 @@ function openCreate() {
 
 const app = document.getElementById("app")!;
 
+/** Show a readable error instead of a blank screen if startup fails. */
+function showFatal(message: string) {
+  app.innerHTML = `<div style="padding:26px;font-family:sans-serif;line-height:1.5">
+    <h2 style="margin:0 0 8px;font-size:17px;color:#28282b">Hydration Hero couldn't start</h2>
+    <p style="margin:0 0 12px;color:#86867e;font-size:13px">Please send this to support:</p>
+    <pre style="white-space:pre-wrap;word-break:break-word;font-size:12px;color:#b25b53;background:#f6f6f4;padding:12px;border-radius:8px">${String(message).replace(/[<>&]/g, "")}</pre>
+  </div>`;
+}
+window.addEventListener("error", (e) => showFatal(e.message || String(e.error)));
+window.addEventListener("unhandledrejection", (e) => showFatal(`Unhandled: ${String(e.reason)}`));
+
 async function boot() {
-  setupTooltips();
-  settings = await getSettings();
-  applyTheme(settings.theme);
-  view = settings.onboarding_complete ? "settings" : "onboarding";
-  render();
-  listen<string>("navigate", (e) => {
-    view = e.payload === "about" ? "about" : "settings";
+  try {
+    setupTooltips();
+    settings = await getSettings();
+    applyTheme(settings.theme);
+    view = settings.onboarding_complete ? "settings" : "onboarding";
     render();
-  });
+    listen<string>("navigate", (e) => {
+      view = e.payload === "about" ? "about" : "settings";
+      render();
+    });
+  } catch (e) {
+    showFatal(String(e));
+  }
 }
 
 /** Update one or more settings and persist immediately (live-apply). */
