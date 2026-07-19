@@ -47,6 +47,8 @@ export class Sprite {
   // image animated with canvas transforms (the customer's own buddy).
   private mode: "atlas" | "procedural" = "atlas";
   private procImage: HTMLImageElement | null = null;
+  // Optional second pose (tumbler raised) for a real drink animation.
+  private procDrinkImage: HTMLImageElement | null = null;
   private procId = "";
   readonly reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -82,14 +84,19 @@ export class Sprite {
     this.ctx.drawImage(this.atlas, index * fw, st.row * fh, fw, fh, 0, 0, fw, fh);
   }
 
-  /** Load a single imported image, animated procedurally (the custom buddy). */
-  async loadProcedural(dataUrl: string): Promise<void> {
+  /**
+   * Load an imported custom buddy. `dataUrl` is the standing pose; the optional
+   * `drinkDataUrl` is a second "sipping" pose (tumbler raised) — when supplied,
+   * the drink animation swaps to it instead of faking a lean-and-lift.
+   */
+  async loadProcedural(dataUrl: string, drinkDataUrl?: string | null): Promise<void> {
     this.mode = "procedural";
     this.procId = "custom";
     this.canvas.width = 160;
     this.canvas.height = 192;
     this.ctx.imageSmoothingEnabled = true;
     this.procImage = await loadImage(dataUrl);
+    this.procDrinkImage = drinkDataUrl ? await loadImage(drinkDataUrl) : null;
     this.drawProc("idle", 0);
   }
 
@@ -174,13 +181,37 @@ export class Sprite {
     const ch = this.canvas.height;
     ctx.clearRect(0, 0, cw, ch);
 
+    // Both poses are drawn at the SAME scale and feet baseline so they line up
+    // when we swap. When a second pose exists we reserve headroom for the raised
+    // arm; the scale is always derived from the standing pose for consistency.
     const pad = 8;
-    const scale = Math.min((cw - pad * 2) / img.width, (ch - pad) / img.height);
-    const dw = img.width * scale;
-    const dh = img.height * scale;
+    const hasTwo = this.procDrinkImage !== null;
+    const heightBudget = hasTwo ? ch - pad - 22 : ch - pad;
+    const scale = Math.min((cw - pad * 2) / img.width, heightBudget / img.height);
 
-    // The character holds its own tumbler (per the import prompt), so "drink"
-    // is a gentle lean-and-lift to sip from it — no separate cup is drawn.
+    // Real two-pose drink: cross-fade the standing pose into the raised-tumbler
+    // pose (reads as lifting the cup), hold the sip, then fade back.
+    if (state === "drink" && this.procDrinkImage) {
+      const raised = this.procDrinkImage;
+      let alphaB = 1;
+      let bob = -4;
+      if (!this.reduceMotion) {
+        if (el < 0.18) {
+          alphaB = ease(el / 0.18); // lift
+          bob = -4 * alphaB;
+        } else if (el > 0.8) {
+          alphaB = ease(Math.max(0, (1 - el) / 0.2)); // lower
+          bob = -4 * alphaB;
+        } else {
+          bob = -4 + Math.sin(el * 8) * 1.2; // sip
+        }
+      }
+      if (alphaB < 1) this.paintProc(img, scale, bob * 0.5, 0, 1);
+      this.paintProc(raised, scale, bob, 0, alphaB);
+      return;
+    }
+
+    // idle / walk, and the single-image drink fallback (lean-and-lift, no swap).
     let bob = 0;
     let rot = 0;
     if (!this.reduceMotion) {
@@ -198,11 +229,25 @@ export class Sprite {
       rot = -0.2;
       bob = -4;
     }
+    this.paintProc(img, scale, bob, rot, 1);
+  }
 
+  /** Draw one procedural pose anchored at the feet (bottom-centre). */
+  private paintProc(
+    image: HTMLImageElement,
+    scale: number,
+    bob: number,
+    rot: number,
+    alpha: number,
+  ): void {
+    const ctx = this.ctx;
+    const dw = image.width * scale;
+    const dh = image.height * scale;
     ctx.save();
-    ctx.translate(cw / 2, ch - 2 + bob);
+    ctx.globalAlpha = alpha;
+    ctx.translate(this.canvas.width / 2, this.canvas.height - 2 + bob);
     ctx.rotate(rot);
-    ctx.drawImage(img, -dw / 2, -dh, dw, dh);
+    ctx.drawImage(image, -dw / 2, -dh, dw, dh);
     ctx.restore();
   }
 

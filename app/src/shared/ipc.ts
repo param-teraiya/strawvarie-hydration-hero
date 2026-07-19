@@ -26,7 +26,9 @@ export interface Status {
 
 export interface CustomCharacter {
   name: string;
-  image: string; // PNG data URL
+  image: string; // still poster, PNG data URL
+  drink_image?: string | null; // optional sipping pose (still buddies), PNG data URL
+  has_video?: boolean; // true when a green-screen clip is stored
 }
 
 export const getSettings = () => invoke<Settings>("get_settings");
@@ -39,9 +41,16 @@ export const setPause = (kind: "1h" | "3h" | "until_tomorrow" | "off") =>
   invoke("set_pause", { kind });
 export const readImageAsDataUrl = (path: string) =>
   invoke<string>("read_image_as_data_url", { path });
+export const readVideoAsDataUrl = (path: string) =>
+  invoke<string>("read_video_as_data_url", { path });
 export const getCustomCharacter = () => invoke<CustomCharacter | null>("get_custom_character");
-export const saveCustomCharacter = (name: string, image: string) =>
-  invoke("save_custom_character", { name, image });
+export const getCustomVideo = () => invoke<string | null>("get_custom_video");
+export const saveCustomCharacter = (
+  name: string,
+  image: string,
+  drinkImage: string | null,
+  video: string | null,
+) => invoke("save_custom_character", { name, image, drinkImage, video });
 export const deleteCustomCharacter = () => invoke("delete_custom_character");
 
 export { listen };

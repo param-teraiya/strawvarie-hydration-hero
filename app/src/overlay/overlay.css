@@ -94,6 +94,13 @@
   z-index: 1;
   transition: none;
 }
+/* Video buddies walk across their frame, so give them a wider stage. */
+.glass-card.has-video .hero {
+  width: 120px;
+}
+.glass-card.has-video .hero canvas.sprite {
+  width: 120px;
+}
 .hero canvas.sprite.walking {
   transition: transform 0.8s cubic-bezier(0.25, 0.6, 0.3, 1);
 }

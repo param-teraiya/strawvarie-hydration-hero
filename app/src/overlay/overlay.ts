@@ -6,9 +6,17 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import "../shared/theme.css";
 import "./overlay.css";
 import { Sprite } from "../shared/sprites";
+import { VideoBuddy } from "./videoBuddy";
 import { applyTheme } from "../shared/theme";
 import { characterDir } from "../shared/characters";
-import { getCustomCharacter, getSettings, listen, reminderAction, type Settings } from "../shared/ipc";
+import {
+  getCustomCharacter,
+  getCustomVideo,
+  getSettings,
+  listen,
+  reminderAction,
+  type Settings,
+} from "../shared/ipc";
 
 const DISMISS_AFTER_MS = 45_000;
 const CARD_EXIT_MS = 260;
@@ -47,6 +55,8 @@ const snoozeBtn = root.querySelector<HTMLButtonElement>("#snooze")!;
 const xBtn = root.querySelector<HTMLButtonElement>("#x")!;
 
 const sprite = new Sprite(canvas);
+let videoBuddy: VideoBuddy | null = null;
+let usingVideo = false;
 let busy = false;
 let dismissTimer = 0;
 let settleTimer = 0;
@@ -78,7 +88,8 @@ async function ensureCharacter(id: string) {
   if (id === "custom") {
     const custom = await getCustomCharacter();
     if (custom) {
-      if (sprite.id !== "custom") await sprite.loadProcedural(custom.image);
+      if (sprite.id !== "custom")
+        await sprite.loadProcedural(custom.image, custom.drink_image);
       return;
     }
     id = "berry"; // custom selected but missing — fall back gracefully
@@ -93,10 +104,36 @@ async function run(settings: Settings) {
   clearTimeout(dismissTimer);
   clearTimeout(settleTimer);
 
-  await ensureCharacter(settings.character_id);
   applyTheme(settings.theme);
   headline.textContent = LINES[Math.floor(Math.random() * LINES.length)];
   snoozeBtn.textContent = `Snooze ${settings.snooze_minutes}m`;
+
+  // A custom buddy with a green-screen clip plays as video (unless the user
+  // prefers reduced motion, in which case we show its still poster).
+  const custom =
+    settings.character_id === "custom" ? await getCustomCharacter() : null;
+  usingVideo = !!custom?.has_video && !sprite.reduceMotion;
+
+  if (usingVideo) {
+    const clip = await getCustomVideo();
+    if (clip) {
+      videoBuddy ??= new VideoBuddy(canvas);
+      canvas.width = 220;
+      canvas.height = 220;
+      try {
+        await videoBuddy.load(clip);
+      } catch {
+        usingVideo = false;
+      }
+    } else {
+      usingVideo = false;
+    }
+  }
+  if (!usingVideo) {
+    sprite.stop();
+    await ensureCharacter(settings.character_id);
+  }
+  card.classList.toggle("has-video", usingVideo);
 
   if (settings.sound_enabled) chime();
 
@@ -106,7 +143,17 @@ async function run(settings: Settings) {
   canvas.style.transform = OFFSCREEN;
   void card.offsetWidth; // force reflow so the transitions replay cleanly
 
-  if (sprite.reduceMotion) {
+  if (usingVideo) {
+    // The clip walks the buddy in and sips; it plays once and freezes on the
+    // final standing frame, staying on screen until the user acts (no
+    // auto-dismiss timer on the video path — see below).
+    requestAnimationFrame(() => {
+      card.classList.add("in");
+      canvas.classList.add("walking");
+      canvas.style.transform = "translateX(0)";
+    });
+    videoBuddy!.play();
+  } else if (sprite.reduceMotion) {
     canvas.style.transform = "translateX(0)";
     card.classList.add("in");
     sprite.play("idle", { loop: true });
@@ -121,7 +168,11 @@ async function run(settings: Settings) {
     settleTimer = window.setTimeout(() => sprite.play("idle", { loop: true }), WALK_MS);
   }
 
-  dismissTimer = window.setTimeout(() => finish("dismiss"), DISMISS_AFTER_MS);
+  // Video buddies stay until the user acts. Sprite reminders keep the safety
+  // auto-dismiss so a built-in buddy never gets stuck in a corner.
+  if (!usingVideo) {
+    dismissTimer = window.setTimeout(() => finish("dismiss"), DISMISS_AFTER_MS);
+  }
 }
 
 function finish(action: "drank" | "snooze" | "dismiss") {
@@ -135,6 +186,17 @@ function finish(action: "drank" | "snooze" | "dismiss") {
     card.classList.add("out");
     window.setTimeout(() => close(action), CARD_EXIT_MS);
   };
+
+  // The video buddy plays its own exit; if the user acts early we slide it off
+  // and fade the card, otherwise the clip's end triggered this and we just fade.
+  if (usingVideo) {
+    canvas.classList.add("walking");
+    canvas.style.transform = OFFSCREEN;
+    videoBuddy?.stop();
+    fadeAndClose();
+    return;
+  }
+
   const walkOut = () => {
     if (sprite.reduceMotion) {
       fadeAndClose();
@@ -157,6 +219,7 @@ function finish(action: "drank" | "snooze" | "dismiss") {
 async function close(action: "drank" | "snooze" | "dismiss") {
   await reminderAction(action);
   sprite.stop();
+  videoBuddy?.stop();
   await getCurrentWindow().hide();
   card.classList.remove("in", "out");
   canvas.classList.remove("walking");

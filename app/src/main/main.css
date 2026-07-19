@@ -450,13 +450,26 @@ select {
   gap: 10px;
   align-items: flex-start;
 }
-.prompt-box #prompt-text {
+.prompt-box > span {
   flex: 1;
   line-height: 1.4;
 }
 .prompt-box .copy {
   flex: none;
   padding: 6px 12px;
+}
+/* Choose-image buttons sit under their prompt box within a step. */
+.steps li > button {
+  margin-top: 10px;
+}
+.steps .opt {
+  color: var(--muted);
+  font-weight: 400;
+  font-size: 12px;
+}
+.steps .hint {
+  display: block;
+  margin-top: 6px;
 }
 .import-row {
   display: flex;
@@ -473,10 +486,10 @@ select {
   cursor: pointer;
 }
 .c-status {
+  display: inline-block;
   font-size: 13px;
   color: var(--muted);
-  margin: 12px 2px 0;
-  min-height: 1em;
+  margin-left: 10px;
 }
 .preview-wrap {
   margin-top: 14px;
@@ -519,4 +532,18 @@ select {
   font-size: 12px;
   color: var(--muted);
   margin-top: 16px;
+}
+.still-fallback {
+  margin-top: 18px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+.still-fallback summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--muted);
+  user-select: none;
+}
+.still-fallback[open] summary {
+  margin-bottom: 10px;
 }

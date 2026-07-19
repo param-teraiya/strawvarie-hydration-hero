@@ -7,6 +7,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import "../shared/theme.css";
 import "./main.css";
 import { Sprite } from "../shared/sprites";
+import { VideoBuddy } from "../overlay/videoBuddy";
 import { applyTheme } from "../shared/theme";
 import { CHARACTERS, characterDir } from "../shared/characters";
 import { processCharacterImageFromDataUrl } from "../shared/imageProcess";
@@ -15,6 +16,7 @@ import {
   getSettings,
   listen,
   readImageAsDataUrl,
+  readVideoAsDataUrl,
   remindNow,
   saveCustomCharacter,
   saveSettings,
@@ -30,11 +32,35 @@ const LOGIN_HELP =
   "When this is on, Hydration Hero starts automatically every time you turn on your " +
   "computer and waits quietly in the menu bar at the top of the screen. You won't need " +
   "to open it yourself. Turn it off if you'd rather open the app manually.";
-const GEMINI_PROMPT =
+// Pose 1: the standing character, tumbler held down at one side.
+const GEMINI_PROMPT_STAND =
   "Turn the person in this photo into a cute full-body pixel-art character, " +
   "16-bit retro game style, standing and facing forward, full body from head to feet, " +
-  "holding a stainless-steel water tumbler in one hand, " +
+  "holding a stainless-steel water tumbler down at one side, " +
+  "centered with a little space above the head, " +
   "on a solid flat bright green background (hex #00FF00), no shadows, no text.";
+
+// Image-to-video prompt: the animated buddy. Fed to a tool like Gemini/Veo,
+// Runway, or Kling along with the character image. The solid green background is
+// what lets the app key it out and float the character in the reminder card.
+const CLIP_PROMPT =
+  "Animate this pixel-art character in a smooth 16-bit style: it walks in from " +
+  "the side holding a stainless-steel water tumbler, stops facing forward, " +
+  "raises the tumbler and takes a sip, lowers it, and then stands still facing " +
+  "forward holding the tumbler (do not walk back out — end on the standing pose). " +
+  "Keep the character identical throughout. Solid flat bright green background " +
+  "(hex #00FF00) filling the whole frame, no shadows, no text.";
+
+// Pose 2: the SAME character raising the tumbler to sip. Run it right after
+// pose 1 in the same chat so Gemini keeps the character consistent — the
+// "identical … same size and position, only the arm moves" wording is what
+// keeps the two frames aligned when the app swaps between them.
+const GEMINI_PROMPT_SIP =
+  "Now make a second image of the exact same character, keeping everything " +
+  "identical — same body, same colours, same size, and the same position and " +
+  "framing — but raising the tumbler up to their mouth to take a sip. Only the " +
+  "arm and tumbler move. Same solid flat bright green background (hex #00FF00), " +
+  "no shadows, no text.";
 
 const DROP_SVG = `<svg class="drop" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C12 2 4 11 4 16a8 8 0 0 0 16 0C20 11 12 2 12 2Z" fill="var(--accent)"/></svg>`;
 
@@ -43,6 +69,11 @@ let view: "onboarding" | "settings" | "about" | "create" = "settings";
 let createReturn: "onboarding" | "settings" = "settings";
 let step = 0;
 let pickers: Sprite[] = [];
+let createVideoBuddy: VideoBuddy | null = null;
+
+// 1×1 transparent PNG — poster fallback if we can't key a frame from the clip.
+const TRANSPARENT_PX =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC";
 
 function openCreate() {
   createReturn = view === "onboarding" ? "onboarding" : "settings";
@@ -89,6 +120,8 @@ async function update(partial: Partial<Settings>) {
 function stopPickers() {
   pickers.forEach((s) => s.stop());
   pickers = [];
+  createVideoBuddy?.stop();
+  createVideoBuddy = null;
 }
 
 function render() {
@@ -372,8 +405,51 @@ async function renderAbout() {
 }
 
 // --- make your own ---------------------------------------------------------
+/** Grab a mid-clip frame and key out its green background for a still poster. */
+function extractPoster(videoDataUrl: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    const v = document.createElement("video");
+    v.muted = true;
+    v.playsInline = true;
+    v.preload = "auto";
+    const grab = async () => {
+      try {
+        const c = document.createElement("canvas");
+        c.width = v.videoWidth;
+        c.height = v.videoHeight;
+        c.getContext("2d")!.drawImage(v, 0, 0);
+        resolve(await processCharacterImageFromDataUrl(c.toDataURL("image/png")));
+      } catch {
+        resolve(null);
+      }
+    };
+    v.addEventListener(
+      "loadeddata",
+      () => {
+        const t = v.duration && isFinite(v.duration) ? v.duration * 0.45 : 0;
+        v.addEventListener("seeked", grab, { once: true });
+        try {
+          v.currentTime = t;
+        } catch {
+          void grab();
+        }
+      },
+      { once: true },
+    );
+    v.addEventListener("error", () => resolve(null), { once: true });
+    v.src = videoDataUrl;
+    v.load();
+  });
+}
+
 function renderCreate() {
-  let processed: string | null = null;
+  // Primary path: an animated green-screen clip (walk in → sip → walk out).
+  // Fallback (collapsed): one or two still images.
+  let videoUrl: string | null = null;
+  let poster: string | null = null;
+  let standImg: string | null = null;
+  let sipImg: string | null = null;
+
   const wrap = document.createElement("div");
   wrap.className = "content create";
   wrap.innerHTML = `
@@ -381,56 +457,129 @@ function renderCreate() {
       <button class="btn-ghost" id="c-back">‹ Back</button>
       <h2>Make your own buddy</h2>
     </div>
-    <p class="create-intro">Turn a photo into your very own pixel buddy — about a minute.</p>
+    <p class="create-intro">Make a short animation of your character and it'll walk in, sip, and stroll off in every reminder.</p>
     <ol class="steps">
-      <li>Open Google Gemini and upload a clear, full-body photo.</li>
-      <li>Paste this prompt and send it:
+      <li><strong>Make your character.</strong> In Google Gemini, upload a full-body photo and send this:
         <div class="prompt-box">
-          <span id="prompt-text">${escapeHtml(GEMINI_PROMPT)}</span>
-          <button class="btn-secondary copy" id="c-copy">Copy</button>
+          <span>${escapeHtml(GEMINI_PROMPT_STAND)}</span>
+          <button class="btn-secondary copy" data-prompt="stand">Copy</button>
         </div>
       </li>
-      <li>Download the image Gemini makes for you.</li>
-      <li>Bring it back here with “Choose image”.</li>
+      <li><strong>Animate it.</strong> In an image-to-video tool (Gemini Veo, Runway, Kling…), upload that image and send this:
+        <div class="prompt-box">
+          <span>${escapeHtml(CLIP_PROMPT)}</span>
+          <button class="btn-secondary copy" data-prompt="clip">Copy</button>
+        </div>
+        <span class="hint">The bright-green background is what lets the app cut your character out — keep it solid green.</span>
+      </li>
+      <li><strong>Download the video</strong>, then bring it here:
+        <button class="btn-primary" id="c-choose-video">Choose video…</button>
+        <span class="c-status" id="c-status-video"></span>
+      </li>
     </ol>
     <div class="import-row">
       <button class="btn-secondary" id="c-gemini">Open Gemini ↗</button>
-      <button class="btn-primary" id="c-choose">Choose image…</button>
     </div>
-    <p class="c-status" id="c-status"></p>
     <div class="preview-wrap" id="c-preview" hidden>
       <canvas class="sprite" id="c-canvas"></canvas>
       <div class="preview-form">
         <input type="text" id="c-name" placeholder="Name your buddy" maxlength="18"/>
         <div class="preview-actions">
-          <button class="btn-secondary" id="c-retry">Try another</button>
           <button class="btn-primary" id="c-save">Use this buddy</button>
         </div>
       </div>
     </div>
-    <p class="hint">Tip: a plain, solid-colour background works best — the app removes it for you.</p>`;
+    <details class="still-fallback">
+      <summary>No video? Use a still image instead</summary>
+      <ol class="steps">
+        <li><strong>Standing pose.</strong> Use the character image from step 1 above.
+          <button class="btn-secondary" id="c-choose-stand">Choose standing image…</button>
+          <span class="c-status" id="c-status-stand"></span>
+        </li>
+        <li><strong>Sipping pose</strong> <span class="opt">(optional)</span>. Same character raising the tumbler:
+          <div class="prompt-box">
+            <span>${escapeHtml(GEMINI_PROMPT_SIP)}</span>
+            <button class="btn-secondary copy" data-prompt="sip">Copy</button>
+          </div>
+          <button class="btn-secondary" id="c-choose-sip">Choose sipping image…</button>
+          <span class="c-status" id="c-status-sip"></span>
+        </li>
+      </ol>
+      <div class="preview-wrap" id="c-preview-still" hidden>
+        <canvas class="sprite" id="c-canvas-still"></canvas>
+        <div class="preview-form">
+          <input type="text" id="c-name-still" placeholder="Name your buddy" maxlength="18"/>
+          <div class="preview-actions">
+            <button class="btn-secondary" id="c-drink" hidden>Preview sip</button>
+            <button class="btn-primary" id="c-save-still">Use this buddy</button>
+          </div>
+        </div>
+      </div>
+    </details>`;
   app.appendChild(wrap);
 
-  const status = wrap.querySelector<HTMLParagraphElement>("#c-status")!;
-  const previewWrap = wrap.querySelector<HTMLDivElement>("#c-preview")!;
-  const nameInput = wrap.querySelector<HTMLInputElement>("#c-name")!;
-  const previewSprite = new Sprite(wrap.querySelector<HTMLCanvasElement>("#c-canvas")!);
-  pickers.push(previewSprite);
+  const status = (id: string) => wrap.querySelector<HTMLSpanElement>(`#${id}`)!;
 
-  wrap.querySelector("#c-back")!.addEventListener("click", () => {
+  // --- video path ---
+  const videoPreview = wrap.querySelector<HTMLDivElement>("#c-preview")!;
+  const videoCanvas = wrap.querySelector<HTMLCanvasElement>("#c-canvas")!;
+  videoCanvas.width = 220;
+  videoCanvas.height = 220;
+  const previewBuddy = new VideoBuddy(videoCanvas);
+  createVideoBuddy = previewBuddy;
+  const loopPreview = () => previewBuddy.play(loopPreview);
+
+  wrap.querySelector("#c-choose-video")!.addEventListener("click", async () => {
+    let path: string | string[] | null = null;
+    try {
+      path = await open({
+        multiple: false,
+        directory: false,
+        filters: [{ name: "Video", extensions: ["mp4", "mov", "m4v", "webm"] }],
+      });
+    } catch {
+      status("c-status-video").textContent = "Couldn't open the file picker.";
+      return;
+    }
+    if (!path || Array.isArray(path)) return;
+    status("c-status-video").textContent = "Processing…";
+    try {
+      videoUrl = await readVideoAsDataUrl(path);
+      await previewBuddy.load(videoUrl);
+      loopPreview();
+      videoPreview.hidden = false;
+      status("c-status-video").textContent = "Added ✓";
+      poster = await extractPoster(videoUrl); // for the still fallback / reduced-motion
+    } catch {
+      videoUrl = null;
+      status("c-status-video").textContent = "That video didn't work. Try an MP4.";
+    }
+  });
+
+  wrap.querySelector("#c-save")!.addEventListener("click", async () => {
+    if (!videoUrl) return;
+    const name =
+      wrap.querySelector<HTMLInputElement>("#c-name")!.value.trim().slice(0, 18) || "My buddy";
+    await saveCustomCharacter(name, poster ?? TRANSPARENT_PX, null, videoUrl);
+    settings = await getSettings();
     view = createReturn;
     render();
   });
-  wrap.querySelector("#c-gemini")!.addEventListener("click", () => openUrl(GEMINI_URL));
-  wrap.querySelector("#c-copy")!.addEventListener("click", async (e) => {
-    await copyText(GEMINI_PROMPT);
-    const b = e.currentTarget as HTMLButtonElement;
-    const old = b.textContent;
-    b.textContent = "Copied!";
-    setTimeout(() => (b.textContent = old), 1500);
-  });
 
-  wrap.querySelector("#c-choose")!.addEventListener("click", async () => {
+  // --- still fallback path ---
+  const stillPreview = wrap.querySelector<HTMLDivElement>("#c-preview-still")!;
+  const drinkBtn = wrap.querySelector<HTMLButtonElement>("#c-drink")!;
+  const previewSprite = new Sprite(wrap.querySelector<HTMLCanvasElement>("#c-canvas-still")!);
+  pickers.push(previewSprite);
+
+  const refreshStill = async () => {
+    if (!standImg) return;
+    await previewSprite.loadProcedural(standImg, sipImg);
+    previewSprite.play("idle", { loop: true });
+    stillPreview.hidden = false;
+    drinkBtn.hidden = sipImg === null;
+  };
+  const pickInto = async (which: "stand" | "sip") => {
     let path: string | string[] | null = null;
     try {
       path = await open({
@@ -439,39 +588,53 @@ function renderCreate() {
         filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg", "webp", "gif", "bmp"] }],
       });
     } catch {
-      status.textContent = "Couldn't open the file picker. Please try again.";
+      status(`c-status-${which}`).textContent = "Couldn't open the file picker.";
       return;
     }
     if (!path || Array.isArray(path)) return;
-
-    status.textContent = "Processing your image…";
-    previewWrap.hidden = true;
+    status(`c-status-${which}`).textContent = "Processing…";
     try {
-      const dataUrl = await readImageAsDataUrl(path);
-      processed = await processCharacterImageFromDataUrl(dataUrl);
-      await previewSprite.loadProcedural(processed);
-      previewSprite.play("idle", { loop: true });
-      status.textContent = "";
-      previewWrap.hidden = false;
+      const processed = await processCharacterImageFromDataUrl(await readImageAsDataUrl(path));
+      if (which === "stand") standImg = processed;
+      else sipImg = processed;
+      status(`c-status-${which}`).textContent = "Added ✓";
+      await refreshStill();
     } catch {
-      status.textContent = "That image didn't work. Try a PNG or JPG.";
+      status(`c-status-${which}`).textContent = "That image didn't work. Try a PNG or JPG.";
     }
-  });
-
-  wrap.querySelector("#c-retry")!.addEventListener("click", () => {
-    processed = null;
-    previewWrap.hidden = true;
-    previewSprite.stop();
-  });
-
-  wrap.querySelector("#c-save")!.addEventListener("click", async () => {
-    if (!processed) return;
-    const name = nameInput.value.trim().slice(0, 18) || "My buddy";
-    await saveCustomCharacter(name, processed);
-    settings = await getSettings(); // Rust already set character_id = "custom"
+  };
+  wrap.querySelector("#c-choose-stand")!.addEventListener("click", () => pickInto("stand"));
+  wrap.querySelector("#c-choose-sip")!.addEventListener("click", () => pickInto("sip"));
+  drinkBtn.addEventListener("click", () =>
+    previewSprite.play("drink", { onComplete: () => previewSprite.play("idle", { loop: true }) }),
+  );
+  wrap.querySelector("#c-save-still")!.addEventListener("click", async () => {
+    if (!standImg) return;
+    const name =
+      wrap.querySelector<HTMLInputElement>("#c-name-still")!.value.trim().slice(0, 18) || "My buddy";
+    await saveCustomCharacter(name, standImg, sipImg, null);
+    settings = await getSettings();
     view = createReturn;
     render();
   });
+
+  // --- shared ---
+  wrap.querySelector("#c-back")!.addEventListener("click", () => {
+    view = createReturn;
+    render();
+  });
+  wrap.querySelector("#c-gemini")!.addEventListener("click", () => openUrl(GEMINI_URL));
+  wrap.querySelectorAll<HTMLButtonElement>(".copy").forEach((b) =>
+    b.addEventListener("click", async () => {
+      const which = b.dataset.prompt;
+      await copyText(
+        which === "sip" ? GEMINI_PROMPT_SIP : which === "clip" ? CLIP_PROMPT : GEMINI_PROMPT_STAND,
+      );
+      const old = b.textContent;
+      b.textContent = "Copied!";
+      setTimeout(() => (b.textContent = old), 1500);
+    }),
+  );
 }
 
 // --- onboarding ------------------------------------------------------------

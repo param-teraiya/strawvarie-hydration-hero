@@ -163,8 +163,29 @@ fn save_custom_character(
     state: tauri::State<AppState>,
     name: String,
     image: String,
+    drink_image: Option<String>,
+    video: Option<String>,
 ) -> Result<(), String> {
-    custom::save(&app, &custom::CustomCharacter { name, image })?;
+    // A green-screen clip (if provided) is stored as a sidecar .mp4 file.
+    let has_video = match &video {
+        Some(v) => {
+            custom::save_video(&app, v)?;
+            true
+        }
+        None => {
+            custom::delete_video(&app);
+            false
+        }
+    };
+    custom::save(
+        &app,
+        &custom::CustomCharacter {
+            name,
+            image,
+            drink_image,
+            has_video,
+        },
+    )?;
     // Selecting the new buddy right away.
     let mut s = state.settings.lock().unwrap();
     s.character_id = "custom".into();
@@ -186,6 +207,29 @@ fn read_image_as_data_url(path: String) -> Result<String, String> {
     };
     let encoded = base64::engine::general_purpose::STANDARD.encode(bytes);
     Ok(format!("data:{mime};base64,{encoded}"))
+}
+
+/// Read a user-picked video file (the green-screen buddy clip) as a data URL so
+/// the frontend can extract a poster frame and hand the bytes back to be stored.
+#[tauri::command]
+fn read_video_as_data_url(path: String) -> Result<String, String> {
+    use base64::Engine;
+    let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
+    let mime = match path.rsplit('.').next().map(|s| s.to_lowercase()).as_deref() {
+        Some("webm") => "video/webm",
+        Some("mov") => "video/quicktime",
+        Some("m4v") => "video/x-m4v",
+        _ => "video/mp4",
+    };
+    let encoded = base64::engine::general_purpose::STANDARD.encode(bytes);
+    Ok(format!("data:{mime};base64,{encoded}"))
+}
+
+/// Return the stored green-screen clip as a data URL (or None). The overlay
+/// fetches this only when the custom character has a video.
+#[tauri::command]
+fn get_custom_video(app: AppHandle) -> Option<String> {
+    custom::load_video(&app)
 }
 
 #[tauri::command]
@@ -258,6 +302,8 @@ pub fn run() {
             save_custom_character,
             delete_custom_character,
             read_image_as_data_url,
+            read_video_as_data_url,
+            get_custom_video,
         ])
         .on_window_event(|window, event| {
             // Closing the main window hides it (the app lives in the tray) and
