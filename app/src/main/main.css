@@ -411,6 +411,21 @@ select {
   align-items: center;
 }
 
+/* Back button: a clearly-affordanced control so it reads as tappable on every
+   platform (a borderless ghost button was easy to miss on Windows/WebView2). */
+.back-btn {
+  border: 1px solid var(--border);
+  background: var(--card-2);
+  color: var(--ink);
+  padding: 7px 12px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.back-btn:hover {
+  background: var(--accent-soft);
+}
+
 .create-head {
   display: flex;
   align-items: center;

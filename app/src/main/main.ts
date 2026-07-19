@@ -387,7 +387,7 @@ async function renderAbout() {
     <div class="links">
       <button class="btn-secondary" id="updates">Check for updates</button>
       <button class="btn-secondary" id="shop">Shop Strawvarie ↗</button>
-      <button class="btn-ghost" id="back">Back to settings</button>
+      <button class="back-btn" id="back">‹ Back</button>
     </div>
     <p class="version">Version <span id="ver">…</span></p>`;
   app.appendChild(wrap);
@@ -454,7 +454,7 @@ function renderCreate() {
   wrap.className = "content create";
   wrap.innerHTML = `
     <div class="create-head">
-      <button class="btn-ghost" id="c-back">‹ Back</button>
+      <button class="back-btn" id="c-back">‹ Back</button>
       <h2>Make your own buddy</h2>
     </div>
     <p class="create-intro">Make a short animation of your character and it'll walk in, sip, and stroll off in every reminder.</p>
