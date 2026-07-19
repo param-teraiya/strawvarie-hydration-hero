@@ -41,6 +41,11 @@ export class VideoBuddy {
   private lastGood: HTMLCanvasElement;
   private lgctx: CanvasRenderingContext2D;
   private hasLastGood = false;
+  // Entrance/pause/resume: play walk-in, auto-pause when the character arrives
+  // and stands, then resume (sip + walk-out) when the user acts.
+  private detectingArrival = false;
+  private arrivalHist: { t: number; x: number }[] = [];
+  private arriveFallback = 0;
 
   constructor(private canvas: HTMLCanvasElement) {
     this.ctx = canvas.getContext("2d")!;
@@ -105,25 +110,66 @@ export class VideoBuddy {
    */
   play(onEnded?: () => void): void {
     this.onEnded = onEnded ?? null;
+    this.detectingArrival = false;
     cancelAnimationFrame(this.raf);
     const v = this.video;
     v.currentTime = 0;
     v.loop = false;
-    v.onended = () => {
-      this.render();
-      // Freeze on the last centred/standing frame if we captured one, so a clip
-      // that walks off-screen at the end still holds a standing pose.
-      if (this.hasLastGood) {
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        this.ctx.drawImage(this.lastGood, 0, 0);
-      }
-      cancelAnimationFrame(this.raf);
-      this.raf = 0;
-      this.onEnded?.();
-    };
+    v.onended = () => this.freezeEnd();
     void v.play().catch(() => {
       /* if autoplay is blocked we still draw the poster frame */
     });
+    this.loop();
+  }
+
+  /**
+   * Reminder entrance: play from the start and AUTO-PAUSE once the character has
+   * walked in and is standing still (centre stops moving). It then waits until
+   * `playRest()` resumes it. Use this instead of `play()` in the overlay.
+   */
+  playEntrance(): void {
+    this.onEnded = null;
+    cancelAnimationFrame(this.raf);
+    clearTimeout(this.arriveFallback);
+    const v = this.video;
+    v.currentTime = 0;
+    v.loop = false;
+    v.onended = () => this.freezeEnd(); // if there's no walk-out beat, just hold
+    this.detectingArrival = true;
+    this.arrivalHist = [];
+    void v.play().catch(() => {});
+    // Safety: if we never detect an arrival (e.g. the character starts centred),
+    // pause partway through so it doesn't play the whole thing.
+    const capMs = Math.min((v.duration || 6) * 1000 * 0.6, 4500);
+    this.arriveFallback = window.setTimeout(() => this.pauseAtStand(), capMs);
+    this.loop();
+  }
+
+  /** Freeze the buddy at the arrived-standing point (called from render()). */
+  private pauseAtStand(): void {
+    if (!this.detectingArrival) return;
+    this.detectingArrival = false;
+    clearTimeout(this.arriveFallback);
+    cancelAnimationFrame(this.raf);
+    this.raf = 0;
+    try {
+      this.video.pause();
+    } catch {
+      /* ignore */
+    }
+  }
+
+  /** Resume from the paused standing pose through to the end (sip → walk out). */
+  playRest(onEnded?: () => void): void {
+    this.onEnded = onEnded ?? null;
+    this.detectingArrival = false;
+    const v = this.video;
+    v.onended = () => this.freezeEnd();
+    void v.play().catch(() => {});
+    this.loop();
+  }
+
+  private loop(): void {
     const tick = () => {
       this.render();
       this.raf = requestAnimationFrame(tick);
@@ -131,7 +177,24 @@ export class VideoBuddy {
     this.raf = requestAnimationFrame(tick);
   }
 
+  /** Draw the final frame, preferring the last standing snapshot, then stop and
+   *  fire the onEnded callback once (used by preview looping and resume-then-fade). */
+  private freezeEnd(): void {
+    this.render();
+    if (this.hasLastGood) {
+      this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+      this.ctx.drawImage(this.lastGood, 0, 0);
+    }
+    cancelAnimationFrame(this.raf);
+    this.raf = 0;
+    const cb = this.onEnded;
+    this.onEnded = null;
+    cb?.();
+  }
+
   stop(): void {
+    this.detectingArrival = false;
+    clearTimeout(this.arriveFallback);
     cancelAnimationFrame(this.raf);
     this.raf = 0;
     this.onEnded = null;
@@ -202,6 +265,27 @@ export class VideoBuddy {
         this.box.y += (ny - this.box.y) * s;
         this.box.w += (nw - this.box.w) * s;
         this.box.h += (nh - this.box.h) * s;
+      }
+    }
+
+    // Entrance auto-pause: once the character's horizontal centre stops moving
+    // (finished walking in), freeze on the standing pose and wait for the user.
+    if (this.detectingArrival && this.box.ready) {
+      const now = performance.now();
+      const cx = this.box.x + this.box.w / 2;
+      this.arrivalHist.push({ t: now, x: cx });
+      while (this.arrivalHist.length && now - this.arrivalHist[0].t > 350) {
+        this.arrivalHist.shift();
+      }
+      const span = now - this.arrivalHist[0].t;
+      if (span >= 300 && v.currentTime > 0.7) {
+        let lo = Infinity;
+        let hi = -Infinity;
+        for (const s of this.arrivalHist) {
+          if (s.x < lo) lo = s.x;
+          if (s.x > hi) hi = s.x;
+        }
+        if (hi - lo < 5) this.pauseAtStand(); // centre steady → arrived
       }
     }
 

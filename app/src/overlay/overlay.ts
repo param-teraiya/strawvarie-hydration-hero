@@ -144,15 +144,15 @@ async function run(settings: Settings) {
   void card.offsetWidth; // force reflow so the transitions replay cleanly
 
   if (usingVideo) {
-    // The clip walks the buddy in and sips; it plays once and freezes on the
-    // final standing frame, staying on screen until the user acts (no
-    // auto-dismiss timer on the video path — see below).
+    // Play the walk-in and auto-pause on the standing pose; it waits there until
+    // the user acts (no auto-dismiss timer on the video path — see below). On
+    // "I drank" we resume through the sip + walk-out (see finish()).
     requestAnimationFrame(() => {
       card.classList.add("in");
       canvas.classList.add("walking");
       canvas.style.transform = "translateX(0)";
     });
-    videoBuddy!.play();
+    videoBuddy!.playEntrance();
   } else if (sprite.reduceMotion) {
     canvas.style.transform = "translateX(0)";
     card.classList.add("in");
@@ -187,13 +187,18 @@ function finish(action: "drank" | "snooze" | "dismiss") {
     window.setTimeout(() => close(action), CARD_EXIT_MS);
   };
 
-  // Video buddy exit: freeze on the standing pose, glide it off the card edge,
-  // THEN fade the card — otherwise fading immediately looks like it vanishes.
   if (usingVideo) {
-    videoBuddy?.stop(); // hold the last standing frame
-    canvas.classList.add("walking"); // 0.8s transform transition
-    canvas.style.transform = OFFSCREEN; // slide the buddy out
-    window.setTimeout(fadeAndClose, WALK_MS); // fade only after it's left
+    if (action === "drank") {
+      // Resume from the paused standing pose: the clip plays the sip and walk-out,
+      // then we fade the card.
+      videoBuddy?.playRest(fadeAndClose);
+    } else {
+      // Snooze / dismiss: don't drink — glide the standing buddy off, then fade.
+      videoBuddy?.stop();
+      canvas.classList.add("walking");
+      canvas.style.transform = OFFSCREEN;
+      window.setTimeout(fadeAndClose, WALK_MS);
+    }
     return;
   }
 

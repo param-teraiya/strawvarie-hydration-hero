@@ -44,12 +44,15 @@ const GEMINI_PROMPT_STAND =
 // Runway, or Kling along with the character image. The solid green background is
 // what lets the app key it out and float the character in the reminder card.
 const CLIP_PROMPT =
-  "Animate this pixel-art character in a smooth 16-bit style: it walks in from " +
-  "the side holding a stainless-steel water tumbler, stops facing forward, " +
-  "raises the tumbler and takes a sip, lowers it, and then stands still facing " +
-  "forward holding the tumbler (do not walk back out — end on the standing pose). " +
-  "Keep the character identical throughout. Solid flat bright green background " +
-  "(hex #00FF00) filling the whole frame, no shadows, no text.";
+  "Animate this image as a lively, dimensional pixel-art character with soft " +
+  "directional lighting, subtle shading and a sense of weight so it feels 3D and alive. " +
+  "Follow this exact order: (1) it walks in from the side holding a stainless-steel " +
+  "Strawvarie water tumbler; (2) it reaches the centre and stands still facing forward " +
+  "for about a second; (3) it raises the tumbler and takes a sip; (4) it lowers the " +
+  "tumbler; (5) it turns and walks back out of frame. Add a soft contact shadow directly " +
+  "under the feet so it looks grounded. Keep the character identical throughout. The ONLY " +
+  "background is a solid flat bright green (hex #00FF00) filling the entire frame — no " +
+  "floor, no scenery, no text (the app removes the green).";
 
 // Pose 2: the SAME character raising the tumbler to sip. Run it right after
 // pose 1 in the same chat so Gemini keeps the character consistent — the
