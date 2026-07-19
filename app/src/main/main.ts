@@ -38,13 +38,13 @@ const TUMBLER =
   "a lilac / soft-lavender matte stainless-steel Strawvarie tumbler with a large " +
   "curved side handle and a straw poking out of the lid (Stanley-Quencher style)";
 
-// Pose 1: the standing character, tumbler held by the handle at one side.
+// Pose 1: the standing character, tumbler held by the handle in its LEFT hand.
 const GEMINI_PROMPT_STAND =
   "Turn the person in this photo into a cute full-body pixel-art character, " +
   "16-bit retro game style, standing and facing forward, full body from head to feet, " +
   "holding " +
   TUMBLER +
-  " by the handle in one hand, down at one side, " +
+  " by the handle in its LEFT hand, down at its left side, " +
   "centered with a little space above the head, " +
   "on a solid flat bright green background (hex #00FF00), no shadows, no text.";
 
@@ -56,12 +56,15 @@ const CLIP_PROMPT =
   "directional lighting, subtle shading and a sense of weight so it feels 3D and alive. " +
   "It is holding " +
   TUMBLER +
-  ". Follow this exact order: (1) it walks in from the side holding the tumbler by the " +
-  "handle; (2) it reaches the centre and stands still facing forward for about a second; " +
-  "(3) it raises the tumbler toward the viewer in a friendly 'cheers' toast; (4) it takes " +
-  "a sip through the straw; (5) it lowers the tumbler; (6) it turns and walks back out of " +
-  "frame. IMPORTANT: keep the tumbler in the SAME hand the entire time — never switch hands " +
-  "or pass it between hands, and keep the tumbler's shape and colour identical throughout. " +
+  " by the handle in its LEFT hand. Follow this exact order: (1) it walks in from the left, " +
+  "facing right, holding the tumbler in its left hand; (2) it reaches the centre and stands " +
+  "facing forward for about a second; (3) it raises the tumbler toward the viewer in a " +
+  "friendly 'cheers' toast; (4) it takes a sip through the straw; (5) it lowers the tumbler; " +
+  "(6) it walks back out to the right the same way it came. " +
+  "CRITICAL: the tumbler stays in the character's LEFT hand for the ENTIRE clip — it must " +
+  "NEVER move to the right hand or switch hands, not even for a single frame and not while " +
+  "turning or walking. The character must NOT spin fully around or mirror/flip; keep its " +
+  "left and right sides consistent throughout. Keep the tumbler's shape and colour identical. " +
   "Add a soft contact shadow directly under the feet so it looks grounded. The ONLY " +
   "background is a solid flat bright green (hex #00FF00) filling the entire frame — no " +
   "floor, no scenery, no text (the app removes the green).";
