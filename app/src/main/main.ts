@@ -466,6 +466,17 @@ function renderCreate() {
   let standImg: string | null = null;
   let sipImg: string | null = null;
 
+  // Prompts are long; show a couple of clamped lines with a Copy button (the main
+  // action) and a "Show more" toggle for anyone who wants to read the whole thing.
+  const promptBox = (text: string, key: string) => `
+    <div class="prompt-box">
+      <p class="prompt-text clamped">${escapeHtml(text)}</p>
+      <div class="prompt-row">
+        <button class="btn-secondary copy" data-prompt="${key}">Copy</button>
+        <button class="prompt-more" type="button">Show more</button>
+      </div>
+    </div>`;
+
   const wrap = document.createElement("div");
   wrap.className = "content create";
   wrap.innerHTML = `
@@ -476,16 +487,10 @@ function renderCreate() {
     <p class="create-intro">Make a short animation of your character and it'll walk in, sip, and stroll off in every reminder.</p>
     <ol class="steps">
       <li><strong>Make your character.</strong> In Google Gemini, upload a full-body photo and send this:
-        <div class="prompt-box">
-          <span>${escapeHtml(GEMINI_PROMPT_STAND)}</span>
-          <button class="btn-secondary copy" data-prompt="stand">Copy</button>
-        </div>
+        ${promptBox(GEMINI_PROMPT_STAND, "stand")}
       </li>
       <li><strong>Animate it.</strong> In an image-to-video tool (Gemini Veo, Runway, Kling…), upload that image and send this:
-        <div class="prompt-box">
-          <span>${escapeHtml(CLIP_PROMPT)}</span>
-          <button class="btn-secondary copy" data-prompt="clip">Copy</button>
-        </div>
+        ${promptBox(CLIP_PROMPT, "clip")}
         <span class="hint">The bright-green background is what lets the app cut your character out — keep it solid green.</span>
       </li>
       <li><strong>Download the video</strong>, then bring it here:
@@ -513,10 +518,7 @@ function renderCreate() {
           <span class="c-status" id="c-status-stand"></span>
         </li>
         <li><strong>Sipping pose</strong> <span class="opt">(optional)</span>. Same character raising the tumbler:
-          <div class="prompt-box">
-            <span>${escapeHtml(GEMINI_PROMPT_SIP)}</span>
-            <button class="btn-secondary copy" data-prompt="sip">Copy</button>
-          </div>
+          ${promptBox(GEMINI_PROMPT_SIP, "sip")}
           <button class="btn-secondary" id="c-choose-sip">Choose sipping image…</button>
           <span class="c-status" id="c-status-sip"></span>
         </li>
@@ -649,6 +651,13 @@ function renderCreate() {
       const old = b.textContent;
       b.textContent = "Copied!";
       setTimeout(() => (b.textContent = old), 1500);
+    }),
+  );
+  wrap.querySelectorAll<HTMLButtonElement>(".prompt-more").forEach((b) =>
+    b.addEventListener("click", () => {
+      const text = b.closest(".prompt-box")?.querySelector<HTMLElement>(".prompt-text");
+      if (!text) return;
+      b.textContent = text.classList.toggle("clamped") ? "Show more" : "Show less";
     }),
   );
 }

@@ -462,16 +462,35 @@ select {
   font-size: 12.5px;
   color: var(--muted);
   display: flex;
-  gap: 10px;
-  align-items: flex-start;
+  flex-direction: column;
+  gap: 8px;
 }
-.prompt-box > span {
-  flex: 1;
-  line-height: 1.4;
+.prompt-text {
+  margin: 0;
+  line-height: 1.45;
+}
+/* Collapsed by default: show ~2 lines so Copy stays the obvious action. */
+.prompt-text.clamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.prompt-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 .prompt-box .copy {
-  flex: none;
-  padding: 6px 12px;
+  padding: 6px 14px;
+}
+.prompt-more {
+  background: transparent;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 4px;
 }
 /* Choose-image buttons sit under their prompt box within a step. */
 .steps li > button {
