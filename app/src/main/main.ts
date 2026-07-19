@@ -32,11 +32,19 @@ const LOGIN_HELP =
   "When this is on, Hydration Hero starts automatically every time you turn on your " +
   "computer and waits quietly in the menu bar at the top of the screen. You won't need " +
   "to open it yourself. Turn it off if you'd rather open the app manually.";
-// Pose 1: the standing character, tumbler held down at one side.
+// The Strawvarie tumbler, described so the AI draws the real product: a lilac
+// Stanley-Quencher-style cup with a side handle and a straw.
+const TUMBLER =
+  "a lilac / soft-lavender matte stainless-steel Strawvarie tumbler with a large " +
+  "curved side handle and a straw poking out of the lid (Stanley-Quencher style)";
+
+// Pose 1: the standing character, tumbler held by the handle at one side.
 const GEMINI_PROMPT_STAND =
   "Turn the person in this photo into a cute full-body pixel-art character, " +
   "16-bit retro game style, standing and facing forward, full body from head to feet, " +
-  "holding a stainless-steel water tumbler down at one side, " +
+  "holding " +
+  TUMBLER +
+  " by the handle in one hand, down at one side, " +
   "centered with a little space above the head, " +
   "on a solid flat bright green background (hex #00FF00), no shadows, no text.";
 
@@ -46,23 +54,25 @@ const GEMINI_PROMPT_STAND =
 const CLIP_PROMPT =
   "Animate this image as a lively, dimensional pixel-art character with soft " +
   "directional lighting, subtle shading and a sense of weight so it feels 3D and alive. " +
-  "Follow this exact order: (1) it walks in from the side holding a stainless-steel " +
-  "Strawvarie water tumbler; (2) it reaches the centre and stands still facing forward " +
-  "for about a second; (3) it raises the tumbler and takes a sip; (4) it lowers the " +
-  "tumbler; (5) it turns and walks back out of frame. Add a soft contact shadow directly " +
-  "under the feet so it looks grounded. Keep the character identical throughout. The ONLY " +
+  "It is holding " +
+  TUMBLER +
+  ". Follow this exact order: (1) it walks in from the side holding the tumbler by the " +
+  "handle; (2) it reaches the centre and stands still facing forward for about a second; " +
+  "(3) it raises the tumbler toward the viewer in a friendly 'cheers' toast; (4) it takes " +
+  "a sip through the straw; (5) it lowers the tumbler; (6) it turns and walks back out of " +
+  "frame. IMPORTANT: keep the tumbler in the SAME hand the entire time — never switch hands " +
+  "or pass it between hands, and keep the tumbler's shape and colour identical throughout. " +
+  "Add a soft contact shadow directly under the feet so it looks grounded. The ONLY " +
   "background is a solid flat bright green (hex #00FF00) filling the entire frame — no " +
   "floor, no scenery, no text (the app removes the green).";
 
-// Pose 2: the SAME character raising the tumbler to sip. Run it right after
-// pose 1 in the same chat so Gemini keeps the character consistent — the
-// "identical … same size and position, only the arm moves" wording is what
-// keeps the two frames aligned when the app swaps between them.
+// Pose 2 (still-image fallback): the SAME character mid-sip. Run it right after
+// pose 1 in the same chat so Gemini keeps the character consistent.
 const GEMINI_PROMPT_SIP =
   "Now make a second image of the exact same character, keeping everything " +
-  "identical — same body, same colours, same size, and the same position and " +
-  "framing — but raising the tumbler up to their mouth to take a sip. Only the " +
-  "arm and tumbler move. Same solid flat bright green background (hex #00FF00), " +
+  "identical — same body, same colours, same size, same position and framing, and the " +
+  "tumbler in the SAME hand — but raising the tumbler to take a sip through the straw. " +
+  "Only the arm and tumbler move. Same solid flat bright green background (hex #00FF00), " +
   "no shadows, no text.";
 
 const DROP_SVG = `<svg class="drop" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C12 2 4 11 4 16a8 8 0 0 0 16 0C20 11 12 2 12 2Z" fill="var(--accent)"/></svg>`;
