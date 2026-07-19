@@ -10,20 +10,20 @@
   "states": {
     "idle": {
       "row": 0,
-      "frames": 2,
-      "fps": 2,
+      "frames": 4,
+      "fps": 4,
       "loop": true
     },
     "walk": {
       "row": 1,
-      "frames": 2,
-      "fps": 8,
+      "frames": 6,
+      "fps": 10,
       "loop": true
     },
     "drink": {
       "row": 2,
-      "frames": 2,
-      "fps": 3,
+      "frames": 6,
+      "fps": 6,
       "loop": false
     }
   },

@@ -11,6 +11,7 @@ Outputs:
   src-tauri/icons/*                                    (app + tray icons)
 """
 import json
+import math
 import os
 import subprocess
 import sys
@@ -68,14 +69,24 @@ def face(d, cx, cy, eyes_closed, kind):
     d.arc([cx - 3, cy + 2, cx + 3, cy + 7], start=10, end=170, fill=INK, width=1)
 
 
-def feet(d, cx, foot_y, spread):
-    d.ellipse([cx - 8 - spread, foot_y, cx - 2 - spread, foot_y + 3], fill=INK)
-    d.ellipse([cx + 2 + spread, foot_y, cx + 8 + spread, foot_y + 3], fill=INK)
+def draw_feet(d, cx, foot_y, la, ra):
+    """Two feet; la/ra shift left/right foot for a walk cycle."""
+    d.ellipse([cx - 8 + la, foot_y, cx - 2 + la, foot_y + 3], fill=INK)
+    d.ellipse([cx + 2 + ra, foot_y, cx + 8 + ra, foot_y + 3], fill=INK)
 
 
-def cup(d, cx, cy):
-    d.rounded_rectangle([cx - 4, cy - 6, cx + 4, cy + 3], radius=2, fill=CUP, outline=CUP_DARK)
-    d.rectangle([cx - 4, cy - 6, cx + 4, cy - 5], fill=CUP_DARK)  # lid rim
+def draw_arm(d, cx, cy, hand_x, hand_y, pal):
+    """A little arm reaching from the body toward the held tumbler."""
+    d.line([(cx + 8, cy + 2), (hand_x, hand_y)], fill=pal["dark"], width=2)
+
+
+def draw_tumbler(d, cx, cy, sipping=False):
+    """A stainless-steel tumbler held in hand."""
+    d.rounded_rectangle([cx - 4, cy - 7, cx + 4, cy + 4], radius=2, fill=CUP, outline=CUP_DARK)
+    d.rectangle([cx - 4, cy - 7, cx + 4, cy - 5], fill=CUP_DARK)  # lid
+    d.line([(cx - 2, cy - 3), (cx - 2, cy + 2)], fill=WHITE, width=1)  # shine
+    if sipping:
+        d.ellipse([cx - 1, cy - 9, cx + 2, cy - 6], fill=(120, 190, 230, 255))  # sip drop
 
 
 def draw_drip(d, cx, cy, pal):
@@ -112,34 +123,70 @@ def draw_sprout(d, cx, cy, pal):
 DRAW = {"drip": draw_drip, "berry": draw_berry, "sprout": draw_sprout}
 
 
-def render_frame(kind, state, frame):
+# Frames per animation state (more frames = more alive).
+STATE_FRAMES = {"idle": 4, "walk": 6, "drink": 6}
+MAX_FRAMES = max(STATE_FRAMES.values())
+
+
+def render_frame(kind, state, i):
+    n = STATE_FRAMES[state]
+    phase = i / n  # 0..1 cyclic phase
     img = new_frame()
     d = ImageDraw.Draw(img)
     pal = PALETTE[kind]
-    bob = -1 if frame == 1 else 0                 # gentle vertical bob
+
+    if state == "idle":
+        bob = round(math.sin(phase * 2 * math.pi) * 1.5)
+    elif state == "walk":
+        bob = -round(abs(math.sin(phase * 2 * math.pi)) * 2)  # rises on each step
+    else:
+        bob = 0
     cx, cy = 20, 22 + bob
     foot_y = 40 + bob
 
     DRAW[kind](d, cx, cy, pal)
 
+    # Legs: alternating walk cycle, or a subtle idle stand.
     if state == "walk":
-        feet(d, cx, foot_y, spread=(2 if frame == 1 else 0))
+        step = math.sin(phase * 2 * math.pi) * 3
+        draw_feet(d, cx, foot_y, la=round(-step), ra=round(step))
     else:
-        feet(d, cx, foot_y, spread=0)
+        draw_feet(d, cx, foot_y, la=0, ra=0)
 
+    # Tumbler: held at the side (idle/walk), raised to sip (drink).
     if state == "drink":
-        cup(d, cx + (3 if frame == 1 else 5), cy + 5)
-        face(d, cx, cy, eyes_closed=(frame == 1), kind=kind)
+        p = i / (n - 1)  # 0..1 progress through the sip
+        rest = (cx + 11, cy + 6)
+        mouth = (cx + 4, cy - 3)
+        if p < 0.4:  # raise
+            k = p / 0.4
+            tx = round(rest[0] + (mouth[0] - rest[0]) * k)
+            ty = round(rest[1] + (mouth[1] - rest[1]) * k)
+            sip = False
+        elif p < 0.75:  # sip
+            tx, ty, sip = mouth[0], mouth[1], True
+        else:  # lower
+            k = (p - 0.75) / 0.25
+            tx = round(mouth[0] + (rest[0] - mouth[0]) * k)
+            ty = round(mouth[1] + (rest[1] - mouth[1]) * k)
+            sip = False
+        draw_arm(d, cx, cy, tx, ty, pal)
+        face(d, cx, cy, eyes_closed=sip, kind=kind)
+        draw_tumbler(d, tx, ty, sipping=sip)
     else:
+        sway = round(math.sin(phase * 2 * math.pi)) if state == "idle" else 0
+        tx, ty = cx + 11, cy + 6 + sway
+        draw_arm(d, cx, cy, tx, ty, pal)
         face(d, cx, cy, eyes_closed=False, kind=kind)
+        draw_tumbler(d, tx, ty)
 
     return img.resize((FW, FH), Image.NEAREST)
 
 
 def build_character(kind):
-    atlas = Image.new("RGBA", (FW * FRAMES, FH * len(STATES)), (0, 0, 0, 0))
+    atlas = Image.new("RGBA", (FW * MAX_FRAMES, FH * len(STATES)), (0, 0, 0, 0))
     for row, state in enumerate(STATES):
-        for col in range(FRAMES):
+        for col in range(STATE_FRAMES[state]):
             atlas.paste(render_frame(kind, state, col), (col * FW, row * FH))
     out = os.path.join(CHAR_DIR, kind)
     os.makedirs(out, exist_ok=True)
@@ -154,9 +201,9 @@ def build_character(kind):
         "anchorX": FW // 2,
         "anchorY": 176,
         "states": {
-            "idle":  {"row": 0, "frames": FRAMES, "fps": 2, "loop": True},
-            "walk":  {"row": 1, "frames": FRAMES, "fps": 8, "loop": True},
-            "drink": {"row": 2, "frames": FRAMES, "fps": 3, "loop": False},
+            "idle":  {"row": 0, "frames": STATE_FRAMES["idle"], "fps": 4, "loop": True},
+            "walk":  {"row": 1, "frames": STATE_FRAMES["walk"], "fps": 10, "loop": True},
+            "drink": {"row": 2, "frames": STATE_FRAMES["drink"], "fps": 6, "loop": False},
         },
         "poster": {"state": "idle", "index": 0},
     }
