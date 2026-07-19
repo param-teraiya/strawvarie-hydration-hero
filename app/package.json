@@ -1,6 +1,6 @@
 {
   "name": "hydration-hero",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "A friendly desktop hydration companion from Strawvarie.",
   "type": "module",
   "private": true,
