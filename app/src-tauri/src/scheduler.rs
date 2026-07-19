@@ -57,7 +57,7 @@ pub fn tick(app: &AppHandle) {
         if let Some(p) = s.paused_until {
             if now >= p {
                 s.paused_until = None;
-                let _ = crate::settings::save(app, &s);
+                let _ = crate::settings::save(&s);
             }
         }
         let paused = s.paused_until.map(|p| now < p).unwrap_or(false);

@@ -58,7 +58,7 @@ pub fn apply_pause(app: &AppHandle, kind: &str) {
     {
         let mut s = state.settings.lock().unwrap();
         s.paused_until = until;
-        let _ = settings::save(app, &s);
+        let _ = settings::save(&s);
     }
 
     if until.is_none() {
@@ -97,7 +97,7 @@ fn save_settings(
         let mut s = state.settings.lock().unwrap();
         *s = settings.clone();
     }
-    settings::save(&app, &settings)?;
+    settings::save(&settings)?;
     apply_autostart(&app, settings.launch_at_login);
 
     // Reschedule from now with the (possibly new) interval.
@@ -168,7 +168,7 @@ fn save_custom_character(
     // Selecting the new buddy right away.
     let mut s = state.settings.lock().unwrap();
     s.character_id = "custom".into();
-    settings::save(&app, &s)
+    settings::save(&s)
 }
 
 /// Read a user-picked image file and return it as a data URL the webview can
@@ -194,7 +194,7 @@ fn delete_custom_character(app: AppHandle, state: tauri::State<AppState>) -> Res
     let mut s = state.settings.lock().unwrap();
     if s.character_id == "custom" {
         s.character_id = "berry".into();
-        return settings::save(&app, &s);
+        return settings::save(&s);
     }
     Ok(())
 }
@@ -216,6 +216,13 @@ fn reveal_main(app: &AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Load settings before the app is built so the managed state is real from
+    // the very first moment (no startup race with the webview).
+    let loaded = settings::load();
+    let onboarding_done = loaded.onboarding_complete;
+    let launch_at_login = loaded.launch_at_login;
+    let interval = loaded.interval_minutes as i64;
+
     let app = tauri::Builder::default()
         // Must be registered first: focuses the running app instead of
         // launching a second copy when the user opens it again.
@@ -230,6 +237,16 @@ pub fn run() {
             // login-launch (stay quiet) from a manual open (show the window).
             Some(vec!["--autostart"]),
         ))
+        // Register the real state up-front (before any window loads) so commands
+        // like get_settings never race the setup hook — on Windows the webview
+        // can invoke before setup() runs.
+        .manage(AppState {
+            settings: Mutex::new(loaded),
+            runtime: Mutex::new(Runtime {
+                next_reminder_at: Some(now_unix() + interval * 60),
+            }),
+            tray_status: Mutex::new(None),
+        })
         .invoke_handler(tauri::generate_handler![
             get_settings,
             save_settings,
@@ -256,22 +273,9 @@ pub fn run() {
                 }
             }
         })
-        .setup(|app| {
+        .setup(move |app| {
             let handle = app.handle();
-            let loaded = settings::load(handle);
-            apply_autostart(handle, loaded.launch_at_login);
-
-            let onboarding_done = loaded.onboarding_complete;
-            let interval = loaded.interval_minutes as i64;
-
-            app.manage(AppState {
-                settings: Mutex::new(loaded),
-                runtime: Mutex::new(Runtime {
-                    next_reminder_at: Some(now_unix() + interval * 60),
-                }),
-                tray_status: Mutex::new(None),
-            });
-
+            apply_autostart(handle, launch_at_login);
             tray::build(handle)?;
 
             // Show the window on first run (onboarding) and on any manual

@@ -7,10 +7,12 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
-use tauri::{AppHandle, Manager};
 
 /// Bump this if the shape of Settings changes in a breaking way.
 const SCHEMA_VERSION: u32 = 1;
+
+/// Matches the app's bundle identifier / Tauri's app_config_dir location.
+const APP_DIR: &str = "in.strawvarie.hydrationhero";
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(default)]
@@ -80,15 +82,17 @@ impl Settings {
     }
 }
 
-fn settings_path(app: &AppHandle) -> Option<PathBuf> {
-    let dir = app.path().app_config_dir().ok()?;
-    Some(dir.join("settings.json"))
+// Resolved without an AppHandle so settings can be loaded before the Tauri app
+// is built (avoids a startup race where the webview queries state too early).
+// dirs::config_dir() + APP_DIR matches Tauri's app_config_dir on every OS.
+fn settings_path() -> Option<PathBuf> {
+    Some(dirs::config_dir()?.join(APP_DIR).join("settings.json"))
 }
 
 /// Load settings. Missing file -> defaults. Corrupt file -> back it up and
 /// use defaults (never crash on startup).
-pub fn load(app: &AppHandle) -> Settings {
-    let Some(path) = settings_path(app) else {
+pub fn load() -> Settings {
+    let Some(path) = settings_path() else {
         return Settings::default();
     };
     let Ok(text) = fs::read_to_string(&path) else {
@@ -107,8 +111,8 @@ pub fn load(app: &AppHandle) -> Settings {
 }
 
 /// Persist settings atomically (write temp, then rename).
-pub fn save(app: &AppHandle, settings: &Settings) -> Result<(), String> {
-    let path = settings_path(app).ok_or("no config dir")?;
+pub fn save(settings: &Settings) -> Result<(), String> {
+    let path = settings_path().ok_or("no config dir")?;
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
