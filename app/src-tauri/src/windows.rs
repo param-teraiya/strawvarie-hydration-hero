@@ -28,8 +28,11 @@ pub fn trigger_reminder(app: &AppHandle) {
     position_in_corner(app, &win, &corner);
     // Surface on the user's current Space and float above the active app,
     // without stealing keyboard focus (the window is non-activating).
-    let _ = win.set_visible_on_all_workspaces(true);
     let _ = win.set_always_on_top(true);
+    #[cfg(not(target_os = "macos"))]
+    let _ = win.set_visible_on_all_workspaces(true);
+    #[cfg(target_os = "macos")]
+    apply_macos_overlay_behavior(&win);
     let _ = win.show();
     // The overlay window fetches its own settings and starts the animation.
     let _ = app.emit("reminder-show", ());
@@ -71,6 +74,25 @@ fn position_in_corner(app: &AppHandle, win: &tauri::WebviewWindow, corner: &str)
     };
 
     let _ = win.set_position(PhysicalPosition { x, y });
+}
+
+/// macOS: let the overlay appear over full-screen apps and on every Space,
+/// without becoming a full-screen-able window itself. Tauri doesn't expose the
+/// `fullScreenAuxiliary` collection behaviour, so we set it on the NSWindow.
+#[cfg(target_os = "macos")]
+fn apply_macos_overlay_behavior(win: &tauri::WebviewWindow) {
+    use objc::{msg_send, runtime::Object, sel, sel_impl};
+    let Ok(ptr) = win.ns_window() else {
+        return;
+    };
+    let ns_window = ptr as *mut Object;
+    // CanJoinAllSpaces(1<<0) | Stationary(1<<4) | FullScreenAuxiliary(1<<8)
+    let behavior: u64 = (1 << 0) | (1 << 4) | (1 << 8);
+    unsafe {
+        let _: () = msg_send![ns_window, setCollectionBehavior: behavior];
+        // NSStatusWindowLevel (25) floats above full-screen app content.
+        let _: () = msg_send![ns_window, setLevel: 25i64];
+    }
 }
 
 /// The monitor under the cursor, or the primary monitor as a fallback.
