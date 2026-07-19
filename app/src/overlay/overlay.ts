@@ -187,13 +187,13 @@ function finish(action: "drank" | "snooze" | "dismiss") {
     window.setTimeout(() => close(action), CARD_EXIT_MS);
   };
 
-  // The video buddy plays its own exit; if the user acts early we slide it off
-  // and fade the card, otherwise the clip's end triggered this and we just fade.
+  // Video buddy exit: freeze on the standing pose, glide it off the card edge,
+  // THEN fade the card — otherwise fading immediately looks like it vanishes.
   if (usingVideo) {
-    canvas.classList.add("walking");
-    canvas.style.transform = OFFSCREEN;
-    videoBuddy?.stop();
-    fadeAndClose();
+    videoBuddy?.stop(); // hold the last standing frame
+    canvas.classList.add("walking"); // 0.8s transform transition
+    canvas.style.transform = OFFSCREEN; // slide the buddy out
+    window.setTimeout(fadeAndClose, WALK_MS); // fade only after it's left
     return;
   }
 
