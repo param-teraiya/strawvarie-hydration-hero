@@ -34,6 +34,13 @@ export class VideoBuddy {
   private onEnded: (() => void) | null = null;
   // Smoothed character box (in work-buffer pixels) to avoid per-frame jitter.
   private box = { x: 0, y: 0, w: WORK_W, h: WORK_W, ready: false };
+  // Snapshot of the last frame where the character was centred and standing.
+  // We freeze on this instead of the literal last frame, so a clip that ends by
+  // walking off-screen still holds a standing pose (belt-and-suspenders for the
+  // "ends standing" prompt guidance).
+  private lastGood: HTMLCanvasElement;
+  private lgctx: CanvasRenderingContext2D;
+  private hasLastGood = false;
 
   constructor(private canvas: HTMLCanvasElement) {
     this.ctx = canvas.getContext("2d")!;
@@ -48,6 +55,8 @@ export class VideoBuddy {
     document.body.appendChild(this.video);
     this.work = document.createElement("canvas");
     this.wctx = this.work.getContext("2d", { willReadFrequently: true })!;
+    this.lastGood = document.createElement("canvas");
+    this.lgctx = this.lastGood.getContext("2d")!;
   }
 
   /** Load a clip (data URL). Resolves once a frame can be drawn. */
@@ -63,6 +72,7 @@ export class VideoBuddy {
         this.work.width = WORK_W;
         this.work.height = Math.max(1, Math.round((WORK_W * vh) / vw));
         this.box = { x: 0, y: 0, w: this.work.width, h: this.work.height, ready: false };
+        this.hasLastGood = false;
         v.removeEventListener("loadeddata", onReady);
         resolve();
       };
@@ -100,7 +110,13 @@ export class VideoBuddy {
     v.currentTime = 0;
     v.loop = false;
     v.onended = () => {
-      this.render(); // draw the last frame so the held pose is the final one
+      this.render();
+      // Freeze on the last centred/standing frame if we captured one, so a clip
+      // that walks off-screen at the end still holds a standing pose.
+      if (this.hasLastGood) {
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        this.ctx.drawImage(this.lastGood, 0, 0);
+      }
       cancelAnimationFrame(this.raf);
       this.raf = 0;
       this.onEnded?.();
@@ -202,5 +218,22 @@ export class VideoBuddy {
     const dx = (cw - dw) / 2;
     const dy = ch - dh - 2;
     this.ctx.drawImage(this.work, b.x, b.y, b.w, b.h, dx, dy, dw, dh);
+
+    // Snapshot this frame if the character is well-centred and substantial (i.e.
+    // standing, not entering/exiting) — this becomes the freeze pose on clip end.
+    if (maxX >= minX) {
+      const rawH = maxY - minY;
+      const rawCx = (minX + maxX) / 2;
+      const centred = Math.abs(rawCx - ww / 2) < ww * 0.22;
+      if (rawH > wh * 0.5 && centred) {
+        if (this.lastGood.width !== cw || this.lastGood.height !== ch) {
+          this.lastGood.width = cw;
+          this.lastGood.height = ch;
+        }
+        this.lgctx.clearRect(0, 0, cw, ch);
+        this.lgctx.drawImage(this.canvas, 0, 0);
+        this.hasLastGood = true;
+      }
+    }
   }
 }
