@@ -289,6 +289,11 @@ pub fn run() {
                 let _ = handle.set_activation_policy(tauri::ActivationPolicy::Accessory);
             }
 
+            // Configure the overlay once so it can float above other apps and
+            // surface over full-screen apps (macOS). Persistent window state, so
+            // this runs a single time here rather than on every reminder.
+            windows::configure_overlay_for_fullscreen(handle);
+
             // Background thread: the reminder clock.
             let sched_handle = handle.clone();
             std::thread::spawn(move || loop {

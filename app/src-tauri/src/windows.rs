@@ -28,8 +28,16 @@ pub fn trigger_reminder(app: &AppHandle) {
     position_in_corner(app, &win, &corner);
     // Surface on the user's current Space and float above the active app,
     // without stealing keyboard focus (the window is non-activating).
-    let _ = win.set_visible_on_all_workspaces(true);
-    let _ = win.set_always_on_top(true);
+    //
+    // On macOS the overlay's Space/level/full-screen behavior is configured once
+    // at startup (see `configure_overlay_for_fullscreen`) and persists across
+    // hide/show, so we deliberately do NOT call `set_always_on_top` here — that
+    // would reset the window level back below other apps' full-screen spaces.
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = win.set_visible_on_all_workspaces(true);
+        let _ = win.set_always_on_top(true);
+    }
     let _ = win.show();
     // The overlay window fetches its own settings and starts the animation.
     let _ = app.emit("reminder-show", ());
@@ -40,6 +48,51 @@ pub fn trigger_reminder(app: &AppHandle) {
     let interval = state.settings.lock().unwrap().interval_minutes as i64;
     state.runtime.lock().unwrap().next_reminder_at = Some(now_unix() + interval * 60);
 }
+
+/// One-time macOS setup so the overlay floats above other apps and shows even
+/// when another app is in full-screen mode.
+///
+/// Two AppKit properties do the work: the collection behavior gains
+/// `CanJoinAllSpaces` + `FullScreenAuxiliary` (the latter is what lets a window
+/// appear inside another app's full-screen Space — Tauri's own
+/// `set_visible_on_all_workspaces` only sets `CanJoinAllSpaces`), and the window
+/// level is raised to the status level so it sits above ordinary windows.
+///
+/// Both are persistent `NSWindow` properties, so we set them once at startup and
+/// never touch AppKit at reminder time. `NSWindow` is main-thread-only, so all
+/// the work is hopped onto the main thread via `run_on_main_thread`.
+#[cfg(target_os = "macos")]
+pub fn configure_overlay_for_fullscreen(app: &AppHandle) {
+    let Some(win) = app.get_webview_window("overlay") else {
+        return;
+    };
+    let win_on_main = win.clone();
+    let _ = win.run_on_main_thread(move || {
+        let Ok(ptr) = win_on_main.ns_window() else {
+            return;
+        };
+        if ptr.is_null() {
+            return;
+        }
+        use objc2_app_kit::{NSWindow, NSWindowCollectionBehavior};
+        // SAFETY: we are on the main thread (guaranteed by run_on_main_thread),
+        // and `ptr` is a live NSWindow owned by this window for the app's life.
+        let ns_window: &NSWindow = unsafe { &*(ptr as *const NSWindow) };
+        let behavior = ns_window.collectionBehavior()
+            | NSWindowCollectionBehavior::CanJoinAllSpaces
+            | NSWindowCollectionBehavior::FullScreenAuxiliary
+            | NSWindowCollectionBehavior::Stationary;
+        ns_window.setCollectionBehavior(behavior);
+        // NSStatusWindowLevel (25): above normal and floating windows and, paired
+        // with FullScreenAuxiliary, visible over other apps' full-screen spaces.
+        ns_window.setLevel(25);
+    });
+}
+
+/// No-op on non-macOS platforms; Windows/Linux float the overlay via
+/// `set_always_on_top` at reminder time instead.
+#[cfg(not(target_os = "macos"))]
+pub fn configure_overlay_for_fullscreen(_app: &AppHandle) {}
 
 fn position_in_corner(app: &AppHandle, win: &tauri::WebviewWindow, corner: &str) {
     let cursor = app.cursor_position().ok();
